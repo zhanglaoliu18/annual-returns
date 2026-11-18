@@ -235,10 +235,15 @@ def main() -> int:
 
     ensure_push_url()
     git("add", "data/")
-    last = written[-1]
-    last_pnl = next(c["pnl"] for c in changed if c["date"] == last)
-    extra = f"（含补录 {len(written) - 1} 天）" if len(written) > 1 else ""
-    git("commit", "-m", f"data: {last} 大账户日盈亏 {last_pnl:+,.2f}{extra}")
+    last_market = changed[-1]["date"]
+    last_pnl = changed[-1]["pnl"]
+    if written[-1] == last_market:
+        extra = f"（含补录 {len(written) - 1} 天）" if len(written) > 1 else ""
+        msg = f"data: {last_market} 大账户日盈亏 {last_pnl:+,.2f}{extra}"
+    else:
+        # 最新交易日已存在且无变化，本次只补了历史缺口
+        msg = f"data: 补录 {len(written)} 天 {written[0]} ~ {written[-1]}"
+    git("commit", "-m", msg)
     git("push", "origin", "HEAD")
     purge_jsdelivr([f"data/daily/{d[:4]}.json" for d in {c["date"] for c in changed}])
     print(json.dumps({"applied": True, "changed": changed, "pushed": True}, ensure_ascii=False))
