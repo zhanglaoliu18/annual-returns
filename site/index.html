@@ -202,14 +202,14 @@ async function main() {
     </div>
     <div class="kpis">${kpis}</div>
 
-    <div class="card"><div class="ct"><h2>累计收益走势</h2><div class="d">三账户毛收益累计（元）</div></div>
-      <svg viewBox="0 0 ${W} ${H}">${lineParts}<path d="${pathD}" fill="none" stroke="#1D4ED8" stroke-width="2.4"/>${dots}</svg></div>
-
     <div class="card"><div class="ct"><h2>数据明细</h2><div class="d">单位：元 · 每日 ETF 盈亏自动累入同花顺（校准日 ${cal.as_of} 之后）</div></div>
       <div class="tscroll"><table>
         <thead><tr><th>年份</th><th>支付宝</th><th>招商银行</th><th>同花顺盈亏（元）</th><th>当年毛收益</th><th>女友利息</th><th>融资利息</th><th>净收益</th></tr></thead>
         <tbody>${rows}${sumRow}</tbody>
       </table></div></div>
+
+    <div class="card"><div class="ct"><h2>累计收益走势</h2><div class="d">三账户毛收益累计（元）</div></div>
+      <svg viewBox="0 0 ${W} ${H}">${lineParts}<path d="${pathD}" fill="none" stroke="#1D4ED8" stroke-width="2.4"/>${dots}</svg></div>
 
     <div class="card"><div class="ct"><h2>毛收益 vs 净收益</h2>
       <div class="legend"><span><i style="background:${GRAY}"></i>毛收益</span><span><i style="background:${RED}"></i>净收益</span></div></div>
