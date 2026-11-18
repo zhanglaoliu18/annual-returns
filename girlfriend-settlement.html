@@ -300,10 +300,11 @@ const fmt0 = n => Math.round(n).toLocaleString('zh-CN');
 let BASE = null;      // 仓库 JSON（含缩略图与默认流水）
 let BASE_FLOWS = [];  // 仓库默认流水
 
-/* CDN 优先（国内节点快），失败回退 github.io 源站 */
+/* 数据文件源站优先（新鲜可靠），jsDelivr 备用；原图几乎不变，CDN 优先 */
 const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
 async function fetchJSON(url) {
-  for (const u of [CDN + url, url]) {
+  const candidates = url.includes('shots.json') ? [CDN + url, url] : [url, CDN + url];
+  for (const u of candidates) {
     try { const r = await fetch(u, {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (e) {}
   }
   return null;
