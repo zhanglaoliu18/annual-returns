@@ -290,7 +290,8 @@ details[open] summary::before{content:"− "}
 
 <script>
 // 数据源：仓库 data/settlement.json；本页新增/修改自动保存在浏览器 localStorage
-const LS_KEY = 'gf_settlement_v1';
+const LS_KEY = 'gf_settlement_v1';        // 本机编辑的流水
+const BASE_CACHE = 'gf_base_cache_v1';    // 仓库数据缓存（含缩略图），秒开用
 const $ = s => document.querySelector(s);
 const tbody = $('#flows tbody');
 const D = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
@@ -305,7 +306,7 @@ const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
 async function fetchJSON(url) {
   const candidates = url.includes('shots.json') ? [CDN + url, url] : [url, CDN + url];
   for (const u of candidates) {
-    try { const r = await fetch(u, {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (e) {}
+    try { const r = await fetch(u, {cache: 'default'}); if (r.ok) return await r.json(); } catch (e) {}
   }
   return null;
 }
@@ -462,21 +463,37 @@ $('#clearBtn').onclick = () => { localStorage.removeItem(LS_KEY); tbody.innerHTM
 $('#basis').addEventListener('change', calc);
 
 // 初始化：优先仓库 JSON，叠加本机保存的流水
+function paramsFrom(o) {
+  if (!o) return;
+  if (o.rate) $('#rate').value = o.rate;
+  if (o.basis) $('#basis').value = o.basis;
+  if (o.end) $('#end').value = o.end;
+}
+
 (async function init() {
-  BASE = await loadBase();
-  if (BASE) BASE_FLOWS = BASE.flows || [];
-  applyParams();
+  /* 先用缓存/本机数据秒渲染 */
   const ls = localStorage.getItem(LS_KEY);
+  let user = null;
   if (ls) {
-    try {
-      const o = JSON.parse(ls);
-      if (o.rate) $('#rate').value = o.rate;
-      if (o.basis) $('#basis').value = o.basis;
-      if (o.end) $('#end').value = o.end;
-      if (Array.isArray(o.flows)) { renderRows(o.flows); return; }
-    } catch (e) {}
+    try { const o = JSON.parse(ls); if (o && Array.isArray(o.flows)) user = o; } catch (e) {}
   }
-  renderRows(BASE_FLOWS);
+  try {
+    const c = JSON.parse(localStorage.getItem(BASE_CACHE) || 'null');
+    if (c && Array.isArray(c.flows)) { BASE = c; BASE_FLOWS = c.flows; }
+  } catch (e) {}
+
+  if (user) { paramsFrom(user); renderRows(user.flows); }
+  else if (BASE) { applyParams(); renderRows(BASE_FLOWS); }
+  else { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
+
+  /* 后台拉最新仓库数据，拉到后重渲染并更新缓存 */
+  const fresh = await loadBase();
+  if (fresh && Array.isArray(fresh.flows)) {
+    BASE = fresh; BASE_FLOWS = fresh.flows;
+    try { localStorage.setItem(BASE_CACHE, JSON.stringify(BASE)); } catch (e) {}
+  }
+  if (user) { paramsFrom(user); renderRows(user.flows); }
+  else if (BASE) { applyParams(); renderRows(BASE_FLOWS); }
 })();
 </script>
 </body>
