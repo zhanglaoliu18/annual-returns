@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度收益总览 · 大账户</title>
+<link rel="prefetch" href="girlfriend-settlement.html">
+<link rel="prefetch" as="fetch" href="data/settlement.json" crossorigin>
 <style>
   :root { --ink:#111827; --sub:#6B7280; --line:#E6E8EC; --up:#DC2626; --down:#16A34A; --accent:#1D4ED8; --gray:#CBD5E1; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -54,11 +56,11 @@ const up = v => v > 0 ? RED : v < 0 ? GREEN : GRAY;
 const signed = (v, d=2) => (v > 0 ? '+' : '') + fmt(v, d);
 
 const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
-/* 源站优先（Pages 缓存≤10分钟，新鲜可靠），jsDelivr 作源站不可达时的备用通道 */
+/* 源站优先（Pages 缓存≤10分钟，新鲜可靠），jsDelivr 作源站不可达时的备用通道；吃浏览器 HTTP 缓存 */
 async function fetchJSON(url, tries = 0) {
   for (const u of [url, CDN + url]) {
     try {
-      const r = await fetch(u, {cache: 'no-store'});
+      const r = await fetch(u, {cache: 'default'});
       if (r.ok) return await r.json();
     } catch (e) {}
   }
