@@ -38,7 +38,6 @@
   td { text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
   tr.sum td { font-weight:700; border-top:1.5px solid var(--line); border-bottom:none; }
   .b { font-weight:600; }
-  .foot { color:var(--sub); font-size:11.5px; line-height:1.7; margin-top:14px; }
   .loading { text-align:center; color:var(--sub); padding:60px 0; font-size:14px; }
   .tip { position:fixed; display:none; pointer-events:none; background:#111827; color:#fff;
          border-radius:8px; padding:8px 11px; font-size:12px; line-height:1.8; white-space:nowrap;
@@ -263,13 +262,7 @@ function main(base, yearDocs, years, gfl) {
 
     <div class="card"><div class="ct"><h2>毛收益 vs 净收益</h2>
       <div class="legend"><span><i style="background:${GRAY}"></i>毛收益</span><span><i style="background:${RED}"></i>净收益</span></div></div>
-      <svg viewBox="0 0 ${BW} ${BH}">${bars}</svg></div>
-
-    <div class="foot">
-      · 每日 15:10 收盘后自动追加日盈亏，按年归档 · 数据更新：${lastDay}<br>
-      · 同花顺 2026 基期 ${fmt(cal.base,0)} 元（${cal.as_of} 收盘后快照校准）；股票持仓盈亏不逐日跟踪，变动时更新校准点。<br>
-      · 女友利息截至 ${today}：${fmt(gf.total)} 元 · 融资利息（2026）：${fmt(fin.byYear[thisYear]||0)} 元
-    </div>`;
+      <svg viewBox="0 0 ${BW} ${BH}">${bars}</svg></div>`;
 
   /* 图表悬浮提示：鼠标移到数据点/柱子上显示明细 */
   const tipEl = document.getElementById('tip');
