@@ -219,7 +219,7 @@ function render(D) {
     '<div class="lbls">' + BANDS.map((b, i) => `<span class="${i === bi ? 'on' : ''}">${b.label}</span>`).join('') + '</div>';
 
   /* --- 融资负债 --- */
-  document.getElementById('finNote').textContent = '年化 ' + annual.toFixed(2) + '% · ' + days + ' 天已计息';
+  document.getElementById('finNote').textContent = '年化 ' + annual.toFixed(1) + '% · ' + days + ' 天已计息';
   const fixedY = (fin.fixed && fin.fixed[y]) || 0;
   document.getElementById('finGrid').innerHTML = [
     { l: '融资负债', v: fmt(debt), n: '本金 ' + fmt(fin.principal || 0) + ' + 应计 ' + fmt(accrued) },

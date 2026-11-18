@@ -3,8 +3,8 @@
 
 幂等：以日期为主键，已存在的日期重跑会覆盖（份额/收盘价变更后重跑即校正）。
 节假日：取行情接口最新交易日，若已记录则跳过，不空写。
-补算：某天没跑，下次运行会自然写入最新交易日；连续多天没跑可手动多次调用
-      （脚本只写最新一天）；如需补多天用 --backfill N。
+补算：默认回看最近 5 个交易日（backfill=5），逐日与已存记录比对，缺哪天补哪天
+      ——接口日K晚生成导致某天漏记时，第二天会自动补回。也可用 --backfill N 指定天数。
 """
 from __future__ import annotations
 
@@ -148,7 +148,7 @@ def ensure_push_url() -> None:
 
 def main() -> int:
     dry = "--dry-run" in sys.argv
-    backfill = 1
+    backfill = 5
     if "--backfill" in sys.argv:
         backfill = int(sys.argv[sys.argv.index("--backfill") + 1])
 
@@ -203,7 +203,7 @@ def main() -> int:
         return 0
 
     # ---- 写盘（dry-run 不落盘；内容与上次一致则不写不提交） ----
-    wrote = False
+    written = []
     for c in changed:
         d = c["date"]
         path = DATA / f"{d[:4]}.json"
@@ -227,17 +227,18 @@ def main() -> int:
             doc["days"] = days
             doc["updated_at"] = t.strftime("%Y-%m-%d %H:%M:%S")
             path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            wrote = True
+            written.append(d)
 
-    if not wrote:
+    if not written:
         print(json.dumps({"applied": False, "reason": "no change since last run"}, ensure_ascii=False))
         return 0
 
     ensure_push_url()
     git("add", "data/")
-    last = changed[-1]["date"]
-    total = sum(c["pnl"] for c in changed)
-    git("commit", "-m", f"data: {last} 大账户日盈亏 {total:+,.2f}")
+    last = written[-1]
+    last_pnl = next(c["pnl"] for c in changed if c["date"] == last)
+    extra = f"（含补录 {len(written) - 1} 天）" if len(written) > 1 else ""
+    git("commit", "-m", f"data: {last} 大账户日盈亏 {last_pnl:+,.2f}{extra}")
     git("push", "origin", "HEAD")
     purge_jsdelivr([f"data/daily/{d[:4]}.json" for d in {c["date"] for c in changed}])
     print(json.dumps({"applied": True, "changed": changed, "pushed": True}, ensure_ascii=False))

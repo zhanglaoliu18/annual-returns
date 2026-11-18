@@ -47,7 +47,7 @@ data/
 - **持仓变动**：改 `data/portfolio/positions.json`（股数 / 成本），push 即生效
 - **女友借款流水**：只改 `data/loan/gf_loan.json`，三个页面都读这一份
 - **同花顺校准点**：改 `data/costs/baseline.json` 的 `ths_2026_calibration`（新快照数字 + 日期）
-- **补算**：`python3 job/daily_update.py --backfill N`（补最近 N 个交易日，写 `data/daily/<年>.json`）
+- **补算**：默认每次回看最近 5 个交易日（`backfill=5`），缺哪天补哪天，接口日K晚生成导致的漏记会在第二天自动补回；也可用 `--backfill N` 指定天数
 - **手动重跑**：再跑一次即可，按日期幂等覆盖；内容无变化则不提交
 
 ## 部署
