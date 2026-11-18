@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年度收益总览 · 大账户</title>
+<style>
+  :root { --ink:#111827; --sub:#6B7280; --line:#E6E8EC; --up:#DC2626; --down:#16A34A; --accent:#1D4ED8; --gray:#CBD5E1; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif; background:#F6F7F9; color:var(--ink); padding:28px 16px 60px; }
+  .wrap { max-width:1080px; margin:0 auto; }
+  h1 { font-size:24px; font-weight:700; }
+  .sub { color:var(--sub); font-size:13px; margin-top:6px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
+  .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .kpi .l { font-size:12.5px; color:var(--sub); }
+  .kpi .v { font-size:22px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .kpi .n { font-size:11.5px; color:var(--sub); margin-top:3px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-top:16px; }
+  .ct { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
+  .ct h2 { font-size:15.5px; font-weight:700; }
+  .ct .d { font-size:12px; color:var(--sub); }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--sub); }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  svg { width:100%; height:auto; display:block; }
+  .tscroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th { text-align:right; padding:8px 10px; border-bottom:1.5px solid var(--line); color:var(--sub); font-weight:600; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  td { text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  tr.sum td { font-weight:700; border-top:1.5px solid var(--line); border-bottom:none; }
+  .b { font-weight:600; }
+  .foot { color:var(--sub); font-size:11.5px; line-height:1.7; margin-top:14px; }
+  .loading { text-align:center; color:var(--sub); padding:60px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="loading">数据加载中…</div></div>
+
+<script>
+const RED='#DC2626', GREEN='#16A34A', GRAY='#9CA3AF';
+const fmt = (v, d=2) => v.toLocaleString('zh-CN', {minimumFractionDigits:d, maximumFractionDigits:d});
+const up = v => v > 0 ? RED : v < 0 ? GREEN : GRAY;
+const signed = (v, d=2) => (v > 0 ? '+' : '') + fmt(v, d);
+
+async function fetchJSON(url) {
+  try { const r = await fetch(url, {cache:'no-store'}); if (!r.ok) return null; return await r.json(); }
+  catch (e) { return null; }
+}
+
+function d2s(d) { return d.toISOString().slice(0,10); }
+function parseD(s) { return new Date(s + 'T00:00:00Z'); }
+function dayDiff(a, b) { return Math.round((parseD(b) - parseD(a)) / 86400000); }
+
+/* 女友利息：10%单利按段计息（段天数为日期差），跨年段在12-31切分归属 */
+function gfInterestByYear(flows, rate, basis, today) {
+  const fs = [...flows].map(f => ({date: f.date, amt: f.amount}))
+    .sort((a,b) => a.date < b.date ? -1 : 1);
+  const out = {}; let total = 0; let bal = 0, prev = null;
+  const addSeg = (a, b, b0) => {
+    const days = dayDiff(a, b); if (days <= 0 || b0 === 0) return;
+    const ya = a.slice(0,4), yb = b.slice(0,4);
+    if (ya === yb) { out[ya] = (out[ya]||0) + b0*days; }
+    else {
+      const d1 = dayDiff(a, ya + '-12-31');
+      out[ya] = (out[ya]||0) + b0*d1;
+      out[yb] = (out[yb]||0) + b0*(days-d1);
+    }
+    total += b0*days;
+  };
+  for (const f of fs) {
+    if (prev) addSeg(prev, f.date, bal);
+    bal += f.amt; prev = f.date;
+  }
+  if (prev) addSeg(prev, today, bal);
+  const res = {};
+  for (const y in out) res[y] = out[y] * rate / basis;
+  return {byYear: res, total: total * rate / basis};
+}
+
+/* 融资利息：2025定值；2026 = 已发生定值 + daily × (今日-start+1) */
+function finInterestByYear(cfg, today) {
+  const out = {...cfg.fixed};
+  const days = dayDiff(cfg.start, today) + 1;
+  out[cfg.start.slice(0,4)] = (cfg.fixed[cfg.start.slice(0,4)] || 0) + cfg.daily * days;
+  return {byYear: out, extraDays: days};
+}
+
+async function main() {
+  const base = await fetchJSON('../data/baseline.json');
+  if (!base) { document.getElementById('app').innerHTML = '<div class="loading">baseline.json 加载失败</div>'; return; }
+  const thisYear = new Date().getUTCFullYear();
+  const years = [];
+  for (let y = 2022; y <= thisYear; y++) years.push(String(y));
+
+  /* 各年日盈亏汇总 */
+  const pnlByYear = {};
+  let lastUpdated = null;
+  for (const y of years) {
+    const doc = await fetchJSON(`../data/${y}.json`);
+    if (!doc) continue;
+    pnlByYear[y] = doc.days.reduce((s, x) => s + x.pnl, 0);
+    if (doc.updated_at) lastUpdated = doc.updated_at;
+  }
+
+  const cal = base.ths_2026_calibration;
+  const ths = {...base.accounts.ths};
+  ths['2026'] = cal.base + (pnlByYear['2026'] || 0);
+
+  const gross = {}, thsCol = {}, aliCol = base.accounts.alipay, cmbCol = base.accounts.cmb;
+  for (const y of years) gross[y] = aliCol[y] + cmbCol[y] + (ths[y] || 0);
+
+  const today = d2s(new Date());
+  const gf = gfInterestByYear(base.costs.gf_loan.flows, base.costs.gf_loan.rate, base.costs.gf_loan.basis, today);
+  const fin = finInterestByYear(base.costs.financing, today);
+
+  const net = {}, cost = {};
+  let gTot = 0, cTot = 0;
+  for (const y of years) {
+    const gfY = gf.byYear[y] || 0, finY = fin.byYear[y] || 0;
+    cost[y] = gfY + finY; net[y] = gross[y] - cost[y];
+    gTot += gross[y]; cTot += cost[y];
+  }
+  const nTot = gTot - cTot;
+  const thsTotal = years.reduce((s,y) => s + (ths[y]||0), 0);
+  const bestY = years.reduce((a,b) => net[b] > net[a] ? b : a);
+  const worstY = years.reduce((a,b) => net[b] < net[a] ? b : a);
+
+  /* ---- 渲染 ---- */
+  const app = document.getElementById('app');
+
+  const kpis = `
+    <div class="kpi"><div class="l">五年净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
+    <div class="kpi"><div class="l">最佳年份 · ${bestY}</div><div class="v" style="color:${up(net[bestY])}">${signed(net[bestY],0)}</div><div class="n">净值口径</div></div>
+    <div class="kpi"><div class="l">最差年份 · ${worstY}</div><div class="v" style="color:${up(net[worstY])}">${fmt(net[worstY],0)}</div><div class="n">${worstY} 年</div></div>
+    <div class="kpi"><div class="l">资金成本合计</div><div class="v" style="color:${GREEN}">${fmt(-cTot,0)}</div><div class="n">女友利息 + 融资利息</div></div>`;
+
+  /* 累计走势（毛收益累计） */
+  let run = 0; const cum = years.map(y => { run += gross[y]; return {y, v: run}; });
+  const cMax = Math.max(...cum.map(c=>c.v), 0), cMin = Math.min(...cum.map(c=>c.v), 0);
+  const step = Math.max(100000, Math.ceil(Math.max(cMax, -cMin) / 100000 / 3) * 100000);
+  const top = Math.ceil(cMax / step) * step, bot = Math.floor(cMin / step) * step;
+  const W=980, H=310, L=66, R=954;
+  const ly = v => 268 - (v - bot) / (top - bot) * 235;
+  const lx = i => L + i * (R - L) / (years.length - 1);
+  let lineParts = '';
+  for (let v = bot; v <= top; v += step) {
+    lineParts += `<line x1="${L}" x2="${R}" y1="${ly(v)}" y2="${ly(v)}" stroke="${v===0?'#111827':'#E6E8EC'}" stroke-width="${v===0?1.2:1}"/>`
+      + `<text x="${L-10}" y="${ly(v)}" fill="#6B7280" font-size="11.5" text-anchor="end" dominant-baseline="middle">${(v/10000)}万</text>`;
+  }
+  const pathD = cum.map((c,i) => `${i?'L':'M'}${lx(i).toFixed(1)},${ly(c.v).toFixed(1)}`).join(' ');
+  const dots = cum.map((c,i) => {
+    const col = up(c.v);
+    return `<circle cx="${lx(i).toFixed(1)}" cy="${ly(c.v).toFixed(1)}" r="4" fill="#fff" stroke="${col}" stroke-width="2.2"/>`
+      + `<text x="${lx(i).toFixed(1)}" y="${ly(c.v) + (c.v<0?16:-13)}" fill="${col}" font-size="11.5" font-weight="600" text-anchor="middle">${(c.v>0?'+':'')}${(c.v/10000).toFixed(1)}万</text>`
+      + `<text x="${lx(i).toFixed(1)}" y="295" fill="#6B7280" font-size="12.5" text-anchor="middle">${c.y}</text>`;
+  }).join('');
+
+  /* 明细表 */
+  const rows = years.map(y => {
+    const g0 = v => v == null ? `<td style="color:${GRAY}">—</td>` : `<td style="color:${up(v)}">${fmt(v)}</td>`;
+    const gi = (gf.byYear[y] || 0), fi = (fin.byYear[y] || 0);
+    return `<tr><td class="b">${y}</td>${g0(aliCol[y])}${g0(cmbCol[y])}<td style="color:${up(ths[y]||0)}">${fmt(ths[y]||0,0)}</td>${g0(gross[y])}${g0(-gi)}${g0(-fi)}<td class="b" style="color:${up(net[y])}">${fmt(net[y])}</td></tr>`;
+  }).join('');
+  const sumRow = (() => {
+    const a = years.reduce((s,y)=>s+aliCol[y],0), c = years.reduce((s,y)=>s+cmbCol[y],0);
+    const g0 = v => `<td style="color:${up(v)}">${fmt(v)}</td>`;
+    return `<tr class="sum"><td>总计</td>${g0(a)}${g0(c)}${g0(thsTotal)}${g0(gTot)}${g0(-gf.total)}${g0(-Object.values(fin.byYear).reduce((x,y)=>x+y,0))}${g0(nTot)}</tr>`;
+  })();
+
+  /* 毛收益 vs 净收益柱图 */
+  const B_MAX = Math.max(...years.map(y => Math.max(gross[y], net[y])), 100000);
+  const BW=980, BH=430, BL=66, BR=954, BASE=345.1, SCALE=311.1/(B_MAX*1.05);
+  const by2 = v => BASE - v*SCALE, bh2 = v => Math.max(Math.abs(v)*SCALE, 1);
+  const centers = years.map((y,i) => 154.8 + i*177.6);
+  let bars = '';
+  for (let v = 0; v <= B_MAX*1.05; v += 100000) {
+    bars += `<line x1="${BL}" x2="${BR}" y1="${by2(v)}" y2="${by2(v)}" stroke="${v===0?'#111827':'#E6E8EC'}" stroke-width="${v===0?1.2:1}"/>`
+      + `<text x="${BL-10}" y="${by2(v)}" fill="#6B7280" font-size="11.5" text-anchor="end" dominant-baseline="middle">${v/10000}万</text>`;
+  }
+  years.forEach((y,i) => {
+    const c = centers[i];
+    for (const [kind, v, x, fill] of [['毛', gross[y], c-58, GRAY], ['净', net[y], c+6, up(net[y]) === GRAY ? '#111827' : up(net[y])]]) {
+      const yy = v >= 0 ? by2(v) : BASE;
+      bars += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="52" height="${bh2(v).toFixed(1)}" rx="2" fill="${fill}"><title>${y} ${kind}收益 ${fmt(v)}</title></rect>`;
+    }
+    const nv = net[y], ny = nv >= 0 ? by2(nv) : BASE, ty = nv >= 0 ? ny-7 : ny+16;
+    bars += `<text x="${(c+32).toFixed(1)}" y="${ty.toFixed(1)}" fill="${up(nv)}" font-size="11" font-weight="700" text-anchor="middle">${(nv>0?'+':'')}${(nv/10000).toFixed(1)}万</text>`
+      + `<text x="${c.toFixed(1)}" y="404" fill="#6B7280" font-size="12.5" text-anchor="middle">${y}</text>`;
+  });
+
+  const lastDay = lastUpdated || '尚未记录';
+  app.innerHTML = `
+    <h1>年度收益总览</h1>
+    <div class="sub">2022 – ${thisYear} · 支付宝 / 招商银行 / 同花顺 三账户合计 · 资金成本 = 女友借款利息（10% 单利）+ 融资利息（${fmt(base.costs.financing.daily,2)} 元/天）</div>
+    <div class="kpis">${kpis}</div>
+
+    <div class="card"><div class="ct"><h2>累计收益走势</h2><div class="d">三账户毛收益累计（元）</div></div>
+      <svg viewBox="0 0 ${W} ${H}">${lineParts}<path d="${pathD}" fill="none" stroke="#1D4ED8" stroke-width="2.4"/>${dots}</svg></div>
+
+    <div class="card"><div class="ct"><h2>数据明细</h2><div class="d">单位：元 · 每日 ETF 盈亏自动累入同花顺（校准日 ${cal.as_of} 之后）</div></div>
+      <div class="tscroll"><table>
+        <thead><tr><th>年份</th><th>支付宝</th><th>招商银行</th><th>同花顺盈亏（元）</th><th>当年毛收益</th><th>女友利息</th><th>融资利息</th><th>净收益</th></tr></thead>
+        <tbody>${rows}${sumRow}</tbody>
+      </table></div></div>
+
+    <div class="card"><div class="ct"><h2>毛收益 vs 净收益</h2>
+      <div class="legend"><span><i style="background:${GRAY}"></i>毛收益</span><span><i style="background:${RED}"></i>净收益</span></div></div>
+      <svg viewBox="0 0 ${BW} ${BH}">${bars}</svg></div>
+
+    <div class="foot">
+      · 数据源：本仓库 data/ 目录，每日 15:10 收盘后自动追加两只 ETF（sh513870 / sh563020）日盈亏，按年归档。<br>
+      · 同花顺 2026 基期 ${fmt(cal.base,0)} 元（${cal.as_of} 收盘后快照校准）；股票持仓盈亏不逐日跟踪，变动时更新校准点。<br>
+      · 女友利息截至 ${today}：${fmt(gf.total)} 元 · 融资利息（2026）：${fmt(fin.byYear[thisYear]||0)} 元（已含 ${fin.extraDays} 天 × ${fmt(base.costs.financing.daily,2)}） · 数据更新：${lastDay}
+    </div>`;
+}
+
+main();
+</script>
+</body>
+</html>
