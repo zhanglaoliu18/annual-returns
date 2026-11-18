@@ -1,0 +1,7 @@
+{
+  "_comment": "大账户持仓（每日盈亏按此计算）。股票变动后修改 shares 并提交；每日记录会写入当日的 shares 快照，历史不受影响。",
+  "positions": [
+    { "code": "sh513870", "alias": "纳指ETF富国", "shares": 750200 },
+    { "code": "sh563020", "alias": "红利低波ETF易方达", "shares": 2498400 }
+  ]
+}
