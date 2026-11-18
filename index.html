@@ -97,24 +97,29 @@ function finInterestByYear(cfg, today) {
 }
 
 async function main() {
-  const base = await fetchJSON('data/baseline.json');
-  if (!base) { document.getElementById('app').innerHTML = '<div class="loading">baseline.json 加载失败</div>'; return; }
   const thisYear = new Date().getUTCFullYear();
   const years = [];
   for (let y = 2022; y <= thisYear; y++) years.push(String(y));
+
+  /* 并行拉取全部数据（baseline + 各年 JSON 一次并发） */
+  const [base, ...yearDocs] = await Promise.all([
+    fetchJSON('data/baseline.json'),
+    ...years.map(y => fetchJSON(`data/${y}.json`)),
+  ]);
+  if (!base) { document.getElementById('app').innerHTML = '<div class="loading">baseline.json 加载失败</div>'; return; }
 
   const cal = base.ths_2026_calibration;
 
   /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
   const pnlByYear = {};
   let lastUpdated = null;
-  for (const y of years) {
-    const doc = await fetchJSON(`data/${y}.json`);
-    if (!doc) continue;
+  years.forEach((y, i) => {
+    const doc = yearDocs[i];
+    if (!doc) return;
     const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
     pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
     if (doc.updated_at) lastUpdated = doc.updated_at;
-  }
+  });
 
   const ths = {...base.accounts.ths};
   ths['2026'] = cal.base + (pnlByYear['2026'] || 0);
