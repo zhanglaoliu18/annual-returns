@@ -54,11 +54,9 @@ const up = v => v > 0 ? RED : v < 0 ? GREEN : GRAY;
 const signed = (v, d=2) => (v > 0 ? '+' : '') + fmt(v, d);
 
 const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
-/* 年份 JSON：CDN 优先（每日任务推完会 purge 刷新），回退源站；baseline：源站优先（保新鲜），回退 CDN */
+/* 源站优先（Pages 缓存≤10分钟，新鲜可靠），jsDelivr 作源站不可达时的备用通道 */
 async function fetchJSON(url, tries = 0) {
-  const cdn = CDN + url;
-  const candidates = url.startsWith('data/') && /\/20\d\d\.json$/.test(url) ? [cdn, url] : [url, cdn];
-  for (const u of candidates) {
+  for (const u of [url, CDN + url]) {
     try {
       const r = await fetch(u, {cache: 'no-store'});
       if (r.ok) return await r.json();
