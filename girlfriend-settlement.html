@@ -152,9 +152,8 @@ details[open] summary::before{content:"− "}
   #flows td input:focus{border-color:var(--brand2)}
   #flows td input::placeholder{font-size:12.5px}
 
-  /* 分段明细：手机上隐藏「余额×天数」列，避免横向滚动 */
+  /* 分段明细：手机端紧凑排版，避免横向滚动 */
   .segs{min-width:0}
-  .segs th:nth-child(5),.segs td:nth-child(5){display:none}
   .segs th,.segs td{padding:8px 4px;font-size:12px}
   .segs th:nth-child(1),.segs td:nth-child(1),
   .segs th:nth-child(2),.segs td:nth-child(2){white-space:nowrap}
@@ -247,7 +246,7 @@ details[open] summary::before{content:"− "}
           <thead>
             <tr>
               <th>起</th><th>止</th><th class="r">天数</th>
-              <th class="r">期间余额</th><th class="r">余额×天数</th><th class="r">该段利息</th>
+              <th class="r">期间余额</th><th class="r">该段利息</th>
             </tr>
           </thead>
           <tbody id="segs"></tbody>
@@ -400,13 +399,11 @@ function calc() {
     '<td>' + s.t.toISOString().slice(0,10) + '</td>' +
     '<td class="r">' + s.n + '</td>' +
     '<td class="r">' + fmt(s.bal) + '</td>' +
-    '<td class="r">' + fmt0(s.acc) + '</td>' +
     '<td class="r">' + fmt(s.acc * rate / 100 / basis) + '</td></tr>'
   ).join('');
   $('#segs').innerHTML = rows +
     '<tr class="sum"><td>合计</td><td></td>' +
     '<td class="r">' + spanDays + '</td><td class="r">—</td>' +
-    '<td class="r">' + fmt0(daysum) + '</td>' +
     '<td class="r">' + fmt(interest) + '</td></tr>';
 }
 
