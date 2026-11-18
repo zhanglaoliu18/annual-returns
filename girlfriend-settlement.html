@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1" name="viewport">
 <title>女友投资结算页 · 10% 单利</title>
+<link rel="prefetch" as="fetch" href="data/gf_loan.json" crossorigin>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -18,7 +19,9 @@ body{background:var(--bg);color:var(--ink);
 .wrap{max-width:1060px;margin:0 auto;padding:38px 20px 80px}
 
 /* header */
-header{margin-bottom:26px}
+header{margin-bottom:26px;display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.back{font-size:13px;color:var(--brand2);text-decoration:none;white-space:nowrap}
+.back:hover{text-decoration:underline}
 h1{margin:0 0 6px;font-size:23px;letter-spacing:.3px;font-weight:600}
 .sub{color:var(--ink2);font-size:13.5px;margin:0}
 
@@ -165,6 +168,7 @@ details[open] summary::before{content:"− "}
 
 <header>
   <h1>女友投资结算页</h1>
+  <a class="back" href="index.html">← 返回总览</a>
 </header>
 
 <!-- 参数 -->
@@ -282,7 +286,7 @@ details[open] summary::before{content:"− "}
 <div class="lightbox" id="lb"><img alt="转账凭据" id="lbimg"></div>
 
 <script>
-// 数据源：仓库 data/settlement.json（只读展示，更新流水由维护者改仓库）
+// 数据源：流水/利率 data/gf_loan.json（唯一数据源）· 缩略图 data/settlement.json · 原图 data/shots.json
 const BASE_CACHE = 'gf_base_cache_v1';    // 仓库数据缓存（含缩略图），秒开用
 const $ = s => document.querySelector(s);
 const tbody = $('#flows tbody');
@@ -339,8 +343,13 @@ function applyParams() {
 }
 
 async function loadBase() {
-  return await fetchJSON('data/settlement.json');
+  /* 流水与利率来自 data/gf_loan.json（唯一数据源），缩略图来自 data/settlement.json */
+  const [loan, sett] = await Promise.all([fetchJSON('data/gf_loan.json'), fetchJSON('data/settlement.json')]);
+  if (!loan || !Array.isArray(loan.flows)) return null;
+  return { rate: loan.rate != null ? loan.rate * 100 : 10, basis: loan.basis || 365,
+           flows: loan.flows, shots_t: (sett && sett.shots_t) || {} };
 }
+
 
 function calc() {
   const rate = parseFloat($('#rate').value) || 0;

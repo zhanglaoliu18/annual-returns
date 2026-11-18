@@ -23,9 +23,11 @@ REPO = "zhanglaoliu18/annual-returns"
 TZ = timezone(timedelta(hours=8))
 
 # 东方财富日K（不复权，全精度3位小数）。腾讯qfq接口会把ETF价格舍入到2位小数，不可用。
+# 收盘价：东方财富日K（不复权，3 位小数）。腾讯日K作为兜底（实测两边价格完全一致）
 KLINE_URL = ("https://push2his.eastmoney.com/api/qt/stock/kline/get"
              "?secid={secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55"
              "&klt=101&fqt=0&end=20500101&lmt={n}")
+KLINE_URL_BK = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{n},"
 
 
 def now() -> datetime:
@@ -33,19 +35,97 @@ def now() -> datetime:
     return datetime.fromisoformat(env) if env else datetime.now(TZ)
 
 
-def fetch_kline(code: str, n: int = 12) -> list[dict]:
+def _http_get(url: str, timeout: int = 20) -> str:
+    """优先走 curl（部分行情接口会拒掉 urllib 的 TLS 握手），失败再退回 urllib。"""
+    try:
+        r = subprocess.run(["curl", "-s", "--max-time", str(timeout), "-A", "Mozilla/5.0", url],
+                           capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout
+    except Exception:
+        pass
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read().decode("utf-8", "ignore")
+
+
+def _kline_em(code: str, n: int) -> list[dict]:
     mkt, sym = code[:2], code[2:]
     secid = ("1." if mkt == "sh" else "0.") + sym
-    req = urllib.request.Request(KLINE_URL.format(secid=secid, n=n),
-                                 headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        data = json.load(r)
+    data = json.loads(_http_get(KLINE_URL.format(secid=secid, n=n)))
     rows = data["data"]["klines"]  # "date,open,close,high,low"
     return [{"date": r.split(",")[0], "close": float(r.split(",")[2])} for r in rows]
 
 
+def _kline_tencent(code: str, n: int) -> list[dict]:
+    data = json.loads(_http_get(KLINE_URL_BK.format(code=code, n=n)))
+    rows = data["data"][code]["day"]  # [date, open, close, high, low, volume]
+    return [{"date": r[0], "close": float(r[2])} for r in rows]
+
+
+def fetch_kline(code: str, n: int = 12) -> list[dict]:
+    """腾讯不复权日K为主（与 etf_report 同源），东财兜底。两边价格均为 3 位小数、口径一致。
+
+    注意必须用不复权（fq=空 / fqt=0）：ETF 分红后复权价会整体平移，
+    历史 pnl 重算就会错，annual-returns 只看当日实际成交价。
+    """
+    try:
+        rows = _kline_tencent(code, n)
+        if rows:
+            return rows
+    except Exception as e:
+        print(f"tencent kline failed ({code}): {e}, fallback to eastmoney")
+    return _kline_em(code, n)
+
+
 def load_positions() -> list[dict]:
     return json.load(open(POS_FILE, encoding="utf-8"))["positions"]
+
+
+# 腾讯行情：现价 [3] / 昨收 [4] / 溢价率 [77]（仅交叉校验）/ IOPV [78]
+# 与 etf_report 同源同口径：溢价率自算，不用 [77]。
+QT_URL = "https://qt.gtimg.cn/q={codes}"
+
+
+def fetch_quotes(codes: list[str]) -> dict:
+    """返回 {code: {"price","prev","iopv","pct","pct_raw"}}；接口异常时返回 {}（不影响主流程）。
+
+    溢价率 = (现价 / IOPV − 1) × 100 自行计算（etf_report 口径）。
+    IOPV 是官方份额参考净值，QDII 已含汇率折算，不再乘 USDCNY。
+    """
+    req = urllib.request.Request(
+        QT_URL.format(codes=",".join(codes)),
+        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"},
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        txt = r.read().decode("gbk", "ignore")
+    out = {}
+    for line in txt.strip().splitlines():
+        if "=" not in line:
+            continue
+        code_part, raw = line.split("=", 1)
+        code = code_part.replace("v_", "").strip()
+        f = raw.strip().strip(";").strip('"').split("~")
+        if len(f) < 35:              # 字段改版保护：宁可报错也不静默写错数
+            raise ValueError(f"quote format changed ({code}): only {len(f)} fields")
+        try:
+            price = float(f[3]) or float(f[4])   # 集合竞价前/停牌可能返回 0 → 回退昨收
+            prev = float(f[4])
+            iopv = float(f[78]) if len(f) > 78 else 0.0
+        except (ValueError, IndexError):
+            continue
+        if price <= 0:
+            continue
+        rec = {"price": price, "prev": prev}
+        if iopv > 0:                              # IOPV 缺失或 ≤0 就不出溢价，不编数
+            pct = (price / iopv - 1) * 100
+            rec.update({"iopv": round(iopv, 4), "pct": round(pct, 2)})
+            try:
+                rec["pct_raw"] = round(float(f[77]), 2)   # 仅交叉校验
+            except (ValueError, IndexError):
+                pass
+        out[code] = rec
+    return out
 
 
 def git(*args: str, check: bool = True) -> str:
@@ -79,6 +159,22 @@ def main() -> int:
     # 取各标的并集的最近 backfill 个交易日（收盘后）
     dates = sorted({k["date"] for kl in klines.values() for k in kl})
     todo = [d for d in dates if d <= t.strftime("%Y-%m-%d")][-backfill:]
+    last_market_day = todo[-1] if todo else None
+
+    # 最新交易日当天的溢价率/IOPV（历史日补算时无从获取，故只挂最新一天）
+    quotes = {}
+    try:
+        quotes = fetch_quotes([p["code"] for p in positions])
+        for code, q in quotes.items():
+            raw = q.get("pct_raw")
+            note = ""
+            if raw is not None and abs(raw - q["pct"]) > 1:
+                note = f"  ⚠️ 与接口字段[77]={raw:+.2f}% 偏差较大，以自算为准"
+            print(f"quote {code}: price={q['price']} iopv={q.get('iopv', 0)} "
+                  f"prem={q.get('pct', 0):+.2f}%{note}")
+    except Exception as e:      # 接口抽风不阻断写盘
+        print("quote fetch failed:", e)
+        quotes = {}
 
     changed = []
     for d in todo:
@@ -116,6 +212,13 @@ def main() -> int:
                  "closes": c["closes"],
                  "shares": {p["code"]: p["shares"] for p in positions},
                  "pnl": c["pnl"]}
+        if quotes and d == last_market_day:
+            # 场内溢价自算（现价/IOPV−1）：{代码: 溢价率%} / {代码: IOPV}
+            prem = {code: q["pct"] for code, q in quotes.items() if code in c["closes"] and "pct" in q}
+            iopv = {code: q["iopv"] for code, q in quotes.items() if code in c["closes"] and "iopv" in q}
+            if prem:
+                entry["premium"] = prem
+                entry["iopv"] = iopv
         old = next((x for x in doc["days"] if x["date"] == d), None)
         if old != entry:
             days = [x for x in doc["days"] if x["date"] != d]

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>年度收益总览 · 大账户</title>
 <link rel="prefetch" href="girlfriend-settlement.html">
+<link rel="prefetch" href="my-account.html">
+<link rel="prefetch" as="fetch" href="data/gf_loan.json" crossorigin>
 <link rel="prefetch" as="fetch" href="data/settlement.json" crossorigin>
 <style>
   :root { --ink:#111827; --sub:#6B7280; --line:#E6E8EC; --up:#DC2626; --down:#16A34A; --accent:#1D4ED8; --gray:#CBD5E1; }
@@ -122,11 +124,11 @@ async function boot() {
   try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) {}
   if (cached && cached.payload) renderFrom(cached.payload);   // 缓存秒开
 
-  const base = await fetchJSON('data/baseline.json');
+  const [base, gfl] = await Promise.all([fetchJSON('data/baseline.json'), fetchJSON('data/gf_loan.json')]);
   if (!base) { if (!cached) document.getElementById('app').innerHTML = '<div class="loading">数据加载失败，请检查网络后刷新</div>'; return; }
 
   const fresh = await loadData(base);
-  const payload = { base: fresh.base, yearDocs: fresh.yearDocs, years: fresh.years };
+  const payload = { base: fresh.base, gfl: gfl || null, yearDocs: fresh.yearDocs, years: fresh.years };
   if (!cached || cacheDiffers(payload, cached.payload)) renderFrom(payload);   // 数据有变化才重绘
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved_at: Date.now(), payload })); } catch (e) {}
 }
@@ -134,13 +136,13 @@ boot();
 
 function renderFrom(cacheObj) {
   if (!cacheObj) return false;
-  main(cacheObj.base, cacheObj.yearDocs, cacheObj.years);
+  main(cacheObj.base, cacheObj.yearDocs, cacheObj.years, cacheObj.gfl);
   return true;
 }
 
 function cacheDiffers(a, b) { return JSON.stringify(a) !== JSON.stringify(b); }
 
-function main(base, yearDocs, years) {
+function main(base, yearDocs, years, gfl) {
   const thisYear = years[years.length - 1];
   const cal = base.ths_2026_calibration;
 
@@ -162,7 +164,9 @@ function main(base, yearDocs, years) {
   for (const y of years) gross[y] = aliCol[y] + cmbCol[y] + (ths[y] || 0);
 
   const today = d2s(new Date());
-  const gf = gfInterestByYear(base.costs.gf_loan.flows, base.costs.gf_loan.rate, base.costs.gf_loan.basis, today);
+  /* 女友借款流水统一来自 data/gf_loan.json（唯一数据源） */
+  const gl = gfl || {rate: 0.1, basis: 365, flows: []};
+  const gf = gfInterestByYear(gl.flows, gl.rate, gl.basis, today);
   const fin = finInterestByYear(base.costs.financing, today);
 
   const net = {}, cost = {};
@@ -180,7 +184,7 @@ function main(base, yearDocs, years) {
   const app = document.getElementById('app');
 
   const kpis = `
-    <div class="kpi"><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
+    <a class="kpi" href="my-account.html" title="打开我的账户（银河两融持仓）"><div class="go">我的账户 ↗</div><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></a>
     <a class="kpi" href="girlfriend-settlement.html" title="打开女友投资结算页"><div class="go">结算页 ↗</div><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></a>
     <div class="kpi"><div class="l">融资利息</div><div class="v" style="color:${GREEN}">${fmt(-finTotal,0)}</div><div class="n">年利率 3.8% · 截至 ${today}</div></div>`;
 

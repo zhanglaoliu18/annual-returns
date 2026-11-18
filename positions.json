@@ -1,7 +1,24 @@
 {
-  "_comment": "大账户持仓（每日盈亏按此计算）。股票变动后修改 shares 并提交；每日记录会写入当日的 shares 快照，历史不受影响。",
+  "_comment": "大账户持仓（每日盈亏按此计算）。股票变动后修改 shares 并提交；每日记录会写入当日的 shares 快照，历史不受影响。cost=持仓成本净值（元/份，用于计算累计盈亏）；target=再平衡目标权重（%）；premium_pct/iopv 为手动兜底快照——每日任务会把当天溢价与 IOPV 写进 data/<年>.json 的 premium/iopv，页面优先用那份。",
+  "rebalance_band": 5,
   "positions": [
-    { "code": "sh513870", "alias": "纳指ETF富国", "shares": 750200 },
-    { "code": "sh563020", "alias": "红利低波ETF易方达", "shares": 2498400 }
+    {
+      "code": "sh513870",
+      "alias": "纳指ETF富国",
+      "shares": 750200,
+      "cost": 1.81957406,
+      "target": 35,
+      "premium_pct": 17.32,
+      "iopv": 1.7193
+    },
+    {
+      "code": "sh563020",
+      "alias": "红利低波ETF易方达",
+      "shares": 2498400,
+      "cost": 1.17624082,
+      "target": 65,
+      "premium_pct": -0.03,
+      "iopv": 1.2474
+    }
   ]
 }
