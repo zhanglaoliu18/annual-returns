@@ -263,9 +263,9 @@ function main(base, yearDocs, years) {
       <svg viewBox="0 0 ${BW} ${BH}">${bars}</svg></div>
 
     <div class="foot">
-      · 数据源：本仓库 data/ 目录，每日 15:10 收盘后自动追加两只 ETF（sh513870 / sh563020）日盈亏，按年归档。<br>
+      · 每日 15:10 收盘后自动追加日盈亏，按年归档 · 数据更新：${lastDay}<br>
       · 同花顺 2026 基期 ${fmt(cal.base,0)} 元（${cal.as_of} 收盘后快照校准）；股票持仓盈亏不逐日跟踪，变动时更新校准点。<br>
-      · 女友利息截至 ${today}：${fmt(gf.total)} 元 · 融资利息（2026）：${fmt(fin.byYear[thisYear]||0)} 元（已含 ${fin.extraDays} 天 × ${fmt(base.costs.financing.daily,2)}） · 数据更新：${lastDay}
+      · 女友利息截至 ${today}：${fmt(gf.total)} 元 · 融资利息（2026）：${fmt(fin.byYear[thisYear]||0)} 元
     </div>`;
 
   /* 图表悬浮提示：鼠标移到数据点/柱子上显示明细 */
