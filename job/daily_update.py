@@ -105,20 +105,29 @@ def main() -> int:
         print(json.dumps({"applied": True, "dry_run": True, "changed": changed}, ensure_ascii=False))
         return 0
 
-    # ---- 写盘（dry-run 不落盘） ----
+    # ---- 写盘（dry-run 不落盘；内容与上次一致则不写不提交） ----
+    wrote = False
     for c in changed:
         d = c["date"]
         path = DATA / f"{d[:4]}.json"
         doc = json.load(open(path, encoding="utf-8")) if path.exists() else {"year": int(d[:4]), "days": []}
-        days = [x for x in doc["days"] if x["date"] != d]
-        days.append({"date": d,
-                     "closes": c["closes"],
-                     "shares": {p["code"]: p["shares"] for p in positions},
-                     "pnl": c["pnl"]})
-        days.sort(key=lambda x: x["date"])
-        doc["days"] = days
-        doc["updated_at"] = t.strftime("%Y-%m-%d %H:%M:%S")
-        path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        entry = {"date": d,
+                 "closes": c["closes"],
+                 "shares": {p["code"]: p["shares"] for p in positions},
+                 "pnl": c["pnl"]}
+        old = next((x for x in doc["days"] if x["date"] == d), None)
+        if old != entry:
+            days = [x for x in doc["days"] if x["date"] != d]
+            days.append(entry)
+            days.sort(key=lambda x: x["date"])
+            doc["days"] = days
+            doc["updated_at"] = t.strftime("%Y-%m-%d %H:%M:%S")
+            path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            wrote = True
+
+    if not wrote:
+        print(json.dumps({"applied": False, "reason": "no change since last run"}, ensure_ascii=False))
+        return 0
 
     ensure_push_url()
     git("add", "data/")
