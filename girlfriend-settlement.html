@@ -297,10 +297,25 @@ const D = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
 const fmt = n => (n < 0 ? '-' : '') + '¥' + Math.abs(n).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmt0 = n => Math.round(n).toLocaleString('zh-CN');
 
-let BASE = null;      // 仓库 JSON（含凭据图与默认流水）
+let BASE = null;      // 仓库 JSON（含缩略图与默认流水）
 let BASE_FLOWS = [];  // 仓库默认流水
 
-function addRow(d = '', a = '', note = '', shot = '', thumb = '', key = '') {
+/* CDN 优先（国内节点快），失败回退 github.io 源站 */
+const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
+async function fetchJSON(url) {
+  for (const u of [CDN + url, url]) {
+    try { const r = await fetch(u, {cache: 'no-store'}); if (r.ok) return await r.json(); } catch (e) {}
+  }
+  return null;
+}
+
+let SHOTS = null;  // 原图字典，点击看大图时才加载
+async function ensureShots() {
+  if (!SHOTS) { const d = await fetchJSON('data/shots.json'); SHOTS = d && d.shots ? d.shots : {}; }
+  return SHOTS;
+}
+
+function addRow(d = '', a = '', note = '', thumb = '', key = '') {
   const tr = document.createElement('tr');
   if (key) tr.dataset.shot = key;
   tr.innerHTML =
@@ -308,7 +323,7 @@ function addRow(d = '', a = '', note = '', shot = '', thumb = '', key = '') {
     '<td class="num"><input type="number" class="a" step="0.01" value="' + a + '" placeholder="转入正 / 取出负"></td>' +
     '<td><input type="text" class="n" value="' + note + '" placeholder="备注"></td>' +
     '<td class="shot">' + (thumb
-      ? '<img class="thumb" src="' + thumb + '" data-full="' + shot + '" alt="转账凭据" title="点击看大图">'
+      ? '<img class="thumb" src="' + thumb + '" data-key="' + key + '" alt="转账凭据" title="点击看大图">'
       : '<span class="noimg">—</span>') + '</td>' +
     '<td><button class="del" title="删除">×</button></td>';
   tr.querySelector('.del').onclick = () => { tr.remove(); saveLocal(); calc(); };
@@ -339,7 +354,7 @@ function renderRows(flows) {
   (flows || []).forEach(f => {
     const k = f.shot || '';
     addRow(f.date || '', f.amount != null ? f.amount : '', f.note || '',
-      k && BASE ? (BASE.shots[k] || '') : '', k && BASE ? (BASE.shots_t[k] || '') : '', k);
+      k && BASE ? (BASE.shots_t[k] || '') : '', k);
   });
   calc();
 }
@@ -353,11 +368,7 @@ function applyParams() {
 }
 
 async function loadBase() {
-  try {
-    const r = await fetch('data/settlement.json', {cache: 'no-store'});
-    if (r.ok) return await r.json();
-  } catch (e) {}
-  return null;
+  return await fetchJSON('data/settlement.json');
 }
 
 function calc() {
@@ -434,7 +445,12 @@ function calc() {
 // 事件
 document.addEventListener('click', e => {
   const t = e.target.closest('.thumb');
-  if (t) { $('#lbimg').src = t.dataset.full || t.src; $('#lb').classList.add('show'); }
+  if (t) {
+    $('#lb').classList.add('show');
+    $('#lbimg').src = t.src;  // 先显示缩略图占位
+    const k = t.dataset.key;
+    if (k) ensureShots().then(shots => { $('#lbimg').src = shots[k] || t.src; });
+  }
 });
 $('#lb').onclick = () => $('#lb').classList.remove('show');
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lb').classList.remove('show'); });
