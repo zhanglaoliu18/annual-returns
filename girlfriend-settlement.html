@@ -52,7 +52,9 @@ td input{width:100%;padding:8px;border:1px solid transparent;border-radius:6px;b
 td input:hover{background:#f2f5f8}
 td input:focus{outline:none;background:#fff;border-color:var(--brand2);box-shadow:0 0 0 3px rgba(47,92,143,.1)}
 
-td.num input{padding-right:14px}
+td.num{font-variant-numeric:tabular-nums;font-weight:600}
+td.num.in{color:var(--green)}
+td.num.out{color:var(--red)}
 .del{border:none;background:transparent;color:var(--ink3);font-size:17px;line-height:1;cursor:pointer;
   padding:5px 8px;border-radius:6px}
 .del:hover{background:var(--redbg);color:var(--red)}
@@ -164,7 +166,6 @@ details[open] summary::before{content:"− "}
 
 <header>
   <h1>女友投资结算页</h1>
-  <p class="sub">数据源：仓库 data/settlement.json · 年化 10% 单利 · 新增/修改自动保存在本浏览器 · 长期保存请更新仓库 JSON</p>
 </header>
 
 <!-- 参数 -->
@@ -198,7 +199,6 @@ details[open] summary::before{content:"− "}
 <div class="card">
   <div class="card-h">
     <h2>资金流水</h2>
-    <span class="hint">转入填正数，取出填负数</span>
   </div>
   <div class="card-b">
     <div class="tblwrap">
@@ -209,16 +209,10 @@ details[open] summary::before{content:"− "}
             <th style="width:160px">金额（元）</th>
             <th>备注</th>
             <th style="width:104px">凭据</th>
-            <th style="width:44px"></th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
-    </div>
-    <div class="tfoot">
-      <button class="btn primary" id="addBtn">+ 新增一笔</button>
-      <button class="btn" id="demoBtn">恢复原始流水</button>
-      <button class="btn" id="clearBtn">清空全部</button>
     </div>
     <div class="warn" id="warn"></div>
   </div>
@@ -289,8 +283,7 @@ details[open] summary::before{content:"− "}
 <div class="lightbox" id="lb"><img alt="转账凭据" id="lbimg"></div>
 
 <script>
-// 数据源：仓库 data/settlement.json；本页新增/修改自动保存在浏览器 localStorage
-const LS_KEY = 'gf_settlement_v1';        // 本机编辑的流水
+// 数据源：仓库 data/settlement.json（只读展示，更新流水由维护者改仓库）
 const BASE_CACHE = 'gf_base_cache_v1';    // 仓库数据缓存（含缩略图），秒开用
 const $ = s => document.querySelector(s);
 const tbody = $('#flows tbody');
@@ -298,8 +291,8 @@ const D = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
 const fmt = n => (n < 0 ? '-' : '') + '¥' + Math.abs(n).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmt0 = n => Math.round(n).toLocaleString('zh-CN');
 
-let BASE = null;      // 仓库 JSON（含缩略图与默认流水）
-let BASE_FLOWS = [];  // 仓库默认流水
+let BASE = null;      // 仓库 JSON（含缩略图与流水）
+let FLOWS = [];       // 当前展示的流水（数据数组，计算用）
 
 /* 数据文件源站优先（新鲜可靠），jsDelivr 备用；原图几乎不变，CDN 优先 */
 const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
@@ -317,47 +310,24 @@ async function ensureShots() {
   return SHOTS;
 }
 
-function addRow(d = '', a = '', note = '', thumb = '', key = '') {
-  const tr = document.createElement('tr');
-  if (key) tr.dataset.shot = key;
-  tr.innerHTML =
-    '<td><input type="datetime-local" class="d" value="' + d + '"></td>' +
-    '<td class="num"><input type="number" class="a" step="0.01" value="' + a + '" placeholder="转入正 / 取出负"></td>' +
-    '<td><input type="text" class="n" value="' + note + '" placeholder="备注"></td>' +
-    '<td class="shot">' + (thumb
-      ? '<img class="thumb" src="' + thumb + '" data-key="' + key + '" alt="转账凭据" title="点击看大图">'
-      : '<span class="noimg">—</span>') + '</td>' +
-    '<td><button class="del" title="删除">×</button></td>';
-  tr.querySelector('.del').onclick = () => { tr.remove(); saveLocal(); calc(); };
-  tr.querySelectorAll('input').forEach(i => i.addEventListener('input', () => { saveLocal(); calc(); }));
-  tbody.appendChild(tr);
-  return tr;
-}
-
-function readRows() {
-  return [...tbody.querySelectorAll('tr')].map(tr => ({
-    date: tr.querySelector('.d').value,
-    amount: parseFloat(tr.querySelector('.a').value) || 0,
-    note: tr.querySelector('.n').value,
-    shot: tr.dataset.shot || ''
-  }));
-}
-
-function saveLocal() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      rate: $('#rate').value, basis: $('#basis').value, end: $('#end').value, flows: readRows()
-    }));
-  } catch (e) {}
-}
-
 function renderRows(flows) {
-  tbody.innerHTML = '';
-  (flows || []).forEach(f => {
+  FLOWS = flows || [];
+  const p = n => String(n).padStart(2, '0');
+  tbody.innerHTML = FLOWS.slice().sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1).map(f => {
     const k = f.shot || '';
-    addRow(f.date || '', f.amount != null ? f.amount : '', f.note || '',
-      k && BASE ? (BASE.shots_t[k] || '') : '', k);
-  });
+    const a = f.amount || 0;
+    const amt = (a >= 0 ? '+' : '-') + Math.abs(a).toLocaleString('zh-CN');
+    const dt = (f.date || '').replace('T', ' ').slice(0, 16);
+    const cls = a >= 0 ? 'in' : 'out';
+    return '<tr>' +
+      '<td>' + dt + '</td>' +
+      '<td class="num ' + cls + '">' + amt + '</td>' +
+      '<td>' + (f.note || '') + '</td>' +
+      '<td class="shot">' + (k && BASE && BASE.shots_t && BASE.shots_t[k]
+        ? '<img class="thumb" src="' + BASE.shots_t[k] + '" data-key="' + k + '" alt="转账凭据" title="点击看大图">'
+        : '<span class="noimg">—</span>') + '</td>' +
+      '</tr>';
+  }).join('');
   calc();
 }
 
@@ -379,13 +349,9 @@ function calc() {
   const endStr = $('#end').value;
 
   let warn = '';
-  const evs = [];
-  tbody.querySelectorAll('tr').forEach(tr => {
-    const d = tr.querySelector('.d').value;
-    const a = parseFloat(tr.querySelector('.a').value);
-    if (d && !isNaN(a)) evs.push({ d: D(d), a, raw: d });
-  });
-  evs.sort((x, y) => x.d - y.d);
+  const evs = FLOWS.filter(f => f.date && !isNaN(f.amount))
+    .map(f => ({ d: D(f.date), a: f.amount }))
+    .sort((x, y) => x.d - y.d);
 
   let bal = 0, daysum = 0, prev = null, inSum = 0, outSum = 0, nIn = 0, nOut = 0;
   const segs = [];
@@ -456,44 +422,28 @@ document.addEventListener('click', e => {
 });
 $('#lb').onclick = () => $('#lb').classList.remove('show');
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lb').classList.remove('show'); });
-$('#addBtn').onclick = () => { addRow(); saveLocal(); };
-$('#demoBtn').onclick = () => { localStorage.removeItem(LS_KEY); applyParams(); renderRows(BASE_FLOWS); };
-$('#clearBtn').onclick = () => { localStorage.removeItem(LS_KEY); tbody.innerHTML = ''; addRow(); saveLocal(); calc(); };
-['#rate', '#basis', '#end'].forEach(s => $(s).addEventListener('input', () => { saveLocal(); calc(); }));
+['#rate', '#basis', '#end'].forEach(s => $(s).addEventListener('input', calc));
 $('#basis').addEventListener('change', calc);
 
 // 初始化：优先仓库 JSON，叠加本机保存的流水
-function paramsFrom(o) {
-  if (!o) return;
-  if (o.rate) $('#rate').value = o.rate;
-  if (o.basis) $('#basis').value = o.basis;
-  if (o.end) $('#end').value = o.end;
-}
-
 (async function init() {
-  /* 先用缓存/本机数据秒渲染 */
-  const ls = localStorage.getItem(LS_KEY);
-  let user = null;
-  if (ls) {
-    try { const o = JSON.parse(ls); if (o && Array.isArray(o.flows)) user = o; } catch (e) {}
-  }
+  /* 先用缓存秒渲染 */
   try {
     const c = JSON.parse(localStorage.getItem(BASE_CACHE) || 'null');
-    if (c && Array.isArray(c.flows)) { BASE = c; BASE_FLOWS = c.flows; }
+    if (c && Array.isArray(c.flows)) { BASE = c; }
   } catch (e) {}
 
-  if (user) { paramsFrom(user); renderRows(user.flows); }
-  else if (BASE) { applyParams(); renderRows(BASE_FLOWS); }
-  else { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
+  if (BASE) { applyParams(); renderRows(BASE.flows); }
+  else { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
 
   /* 后台拉最新仓库数据，拉到后重渲染并更新缓存 */
   const fresh = await loadBase();
   if (fresh && Array.isArray(fresh.flows)) {
-    BASE = fresh; BASE_FLOWS = fresh.flows;
+    BASE = fresh;
     try { localStorage.setItem(BASE_CACHE, JSON.stringify(BASE)); } catch (e) {}
+    applyParams();
+    renderRows(BASE.flows);
   }
-  if (user) { paramsFrom(user); renderRows(user.flows); }
-  else if (BASE) { applyParams(); renderRows(BASE_FLOWS); }
 })();
 </script>
 </body>
