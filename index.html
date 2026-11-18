@@ -147,7 +147,7 @@ async function main() {
 
   const kpis = `
     <div class="kpi"><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
-    <a class="kpi" href="calculator.html" title="打开投资结算计算器"><div class="go">计算器 ↗</div><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></a>
+    <a class="kpi" href="girlfriend-settlement.html" title="打开女友投资结算页"><div class="go">结算页 ↗</div><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></a>
     <div class="kpi"><div class="l">融资利息</div><div class="v" style="color:${GREEN}">${fmt(-finTotal,0)}</div><div class="n">年利率 3.8% · 截至 ${today}</div></div>`;
 
   /* 累计走势（毛收益累计） */
