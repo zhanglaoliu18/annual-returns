@@ -190,7 +190,7 @@ function render(D) {
   const stale = last.date !== TODAY ? ' · 数据 ' + last.date.slice(5) : '';
   document.getElementById('top').innerHTML = [
     { l: '当日盈亏', v: signed(dayPnl), c: up(dayPnl), n: '总市值 ' + fmt(mvTot) + ' · 当日 ' + pct(dayPct) },
-    { l: '本人净资产', v: fmt(ownNet), c: ownNet >= 0 ? 'var(--ink)' : RED, n: '总市值 − 融资负债 − 女友负债（' + fmt(gfDebt) + '）' }
+    { l: '本人净资产', v: fmt(ownNet), c: ownNet >= 0 ? 'var(--ink)' : RED, n: '总市值 − 融资负债 − 女友负债' }
   ].map(c => `<div class="kpi"><div class="l">${c.l}</div><div class="v" style="color:${c.c}">${c.v}</div><div class="n">${c.n}${stale}</div></div>`).join('');
 
   /* --- 担保比例 --- */
