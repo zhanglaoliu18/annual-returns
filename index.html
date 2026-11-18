@@ -53,9 +53,19 @@ const fmt = (v, d=2) => v.toLocaleString('zh-CN', {minimumFractionDigits:d, maxi
 const up = v => v > 0 ? RED : v < 0 ? GREEN : GRAY;
 const signed = (v, d=2) => (v > 0 ? '+' : '') + fmt(v, d);
 
-async function fetchJSON(url) {
-  try { const r = await fetch(url, {cache:'no-store'}); if (!r.ok) return null; return await r.json(); }
-  catch (e) { return null; }
+const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
+/* 年份 JSON：CDN 优先（每日任务推完会 purge 刷新），回退源站；baseline：源站优先（保新鲜），回退 CDN */
+async function fetchJSON(url, tries = 0) {
+  const cdn = CDN + url;
+  const candidates = url.startsWith('data/') && /\/20\d\d\.json$/.test(url) ? [cdn, url] : [url, cdn];
+  for (const u of candidates) {
+    try {
+      const r = await fetch(u, {cache: 'no-store'});
+      if (r.ok) return await r.json();
+    } catch (e) {}
+  }
+  if (tries > 0) { await new Promise(res => setTimeout(res, 600)); return fetchJSON(url, tries - 1); }
+  return null;
 }
 
 function d2s(d) { return d.toISOString().slice(0,10); }
@@ -96,18 +106,42 @@ function finInterestByYear(cfg, today) {
   return {byYear: out, extraDays: days};
 }
 
-async function main() {
-  const thisYear = new Date().getUTCFullYear();
-  const years = [];
-  for (let y = 2022; y <= thisYear; y++) years.push(String(y));
+/* 数据加载：localStorage 缓存优先（秒开），后台静默刷新 */
+const CACHE_KEY = 'ars_data_cache_v1';
+const allYears = (() => { const a = []; for (let y = 2022; y <= new Date().getUTCFullYear(); y++) a.push(String(y)); return a; })();
 
-  /* 并行拉取全部数据（baseline + 各年 JSON 一次并发） */
-  const [base, ...yearDocs] = await Promise.all([
-    fetchJSON('data/baseline.json'),
-    ...years.map(y => fetchJSON(`data/${y}.json`)),
-  ]);
-  if (!base) { document.getElementById('app').innerHTML = '<div class="loading">baseline.json 加载失败</div>'; return; }
+async function loadData(base) {
+  const since = base.daily_since || '2026';
+  const fetchYears = allYears.filter(y => y >= since);
+  const yearDocs = await Promise.all(fetchYears.map(y => fetchJSON(`data/${y}.json`)));
+  return { base, yearDocs, years: allYears };
+}
 
+async function boot() {
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) {}
+  if (cached && cached.payload) renderFrom(cached.payload);   // 缓存秒开
+
+  const base = await fetchJSON('data/baseline.json');
+  if (!base) { if (!cached) document.getElementById('app').innerHTML = '<div class="loading">数据加载失败，请检查网络后刷新</div>'; return; }
+
+  const fresh = await loadData(base);
+  const payload = { base: fresh.base, yearDocs: fresh.yearDocs, years: fresh.years };
+  if (!cached || cacheDiffers(payload, cached.payload)) renderFrom(payload);   // 数据有变化才重绘
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved_at: Date.now(), payload })); } catch (e) {}
+}
+boot();
+
+function renderFrom(cacheObj) {
+  if (!cacheObj) return false;
+  main(cacheObj.base, cacheObj.yearDocs, cacheObj.years);
+  return true;
+}
+
+function cacheDiffers(a, b) { return JSON.stringify(a) !== JSON.stringify(b); }
+
+function main(base, yearDocs, years) {
+  const thisYear = years[years.length - 1];
   const cal = base.ths_2026_calibration;
 
   /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
@@ -250,8 +284,6 @@ async function main() {
     }
   });
 }
-
-main();
 </script>
 </body>
 </html>
