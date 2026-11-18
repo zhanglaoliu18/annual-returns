@@ -18,6 +18,9 @@
   .kpi .l { font-size:12.5px; color:var(--sub); }
   .kpi .v { font-size:22px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
   .kpi .n { font-size:11.5px; color:var(--sub); margin-top:3px; }
+  a.kpi { text-decoration:none; color:inherit; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+  a.kpi:hover { border-color:#1D4ED8; box-shadow:0 2px 12px rgba(29,78,216,.12); }
+  .kpi .go { float:right; font-size:11px; color:#9CA3AF; }
   .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-top:16px; }
   .ct { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
   .ct h2 { font-size:15.5px; font-weight:700; }
@@ -139,7 +142,7 @@ async function main() {
 
   const kpis = `
     <div class="kpi"><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
-    <div class="kpi"><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></div>
+    <a class="kpi" href="https://www.workbuddy.cn/space/d/urslFzcXj48mu27uZh3OC4" target="_blank" rel="noopener" title="打开投资结算计算器"><div class="go">计算器 ↗</div><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></a>
     <div class="kpi"><div class="l">融资利息</div><div class="v" style="color:${GREEN}">${fmt(-finTotal,0)}</div><div class="n">年利率 3.8% · 截至 ${today}</div></div>`;
 
   /* 累计走势（毛收益累计） */
