@@ -19,6 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 POS_FILE = ROOT / "positions.json"
+REPO = "zhanglaoliu18/annual-returns"
 TZ = timezone(timedelta(hours=8))
 
 # 东方财富日K（不复权，全精度3位小数）。腾讯qfq接口会把ETF价格舍入到2位小数，不可用。
@@ -135,8 +136,21 @@ def main() -> int:
     total = sum(c["pnl"] for c in changed)
     git("commit", "-m", f"data: {last} 大账户日盈亏 {total:+,.2f}")
     git("push", "origin", "HEAD")
+    purge_jsdelivr([f"data/{d[:4]}.json" for d in {c["date"] for c in changed}])
     print(json.dumps({"applied": True, "changed": changed, "pushed": True}, ensure_ascii=False))
     return 0
+
+
+def purge_jsdelivr(paths: list[str]) -> None:
+    """推送后刷新 jsDelivr 对这些文件的 CDN 缓存（无需鉴权），保证国内节点当天拿到新数据。"""
+    for p in paths:
+        url = f"https://purge.jsdelivr.net/gh/{REPO}@main/{p}"
+        try:
+            with urllib.request.urlopen(url, timeout=15) as r:
+                st = json.load(r).get("status")
+            print(f"jsDelivr purge {p}: {st}")
+        except Exception as e:  # 刷新失败不影响主流程，最坏情况国内节点晚几小时更新
+            print(f"jsDelivr purge {p}: failed ({e})")
 
 
 if __name__ == "__main__":
