@@ -89,7 +89,7 @@ function finInterestByYear(cfg, today) {
 }
 
 async function main() {
-  const base = await fetchJSON('../data/baseline.json');
+  const base = await fetchJSON('data/baseline.json');
   if (!base) { document.getElementById('app').innerHTML = '<div class="loading">baseline.json 加载失败</div>'; return; }
   const thisYear = new Date().getUTCFullYear();
   const years = [];
@@ -101,7 +101,7 @@ async function main() {
   const pnlByYear = {};
   let lastUpdated = null;
   for (const y of years) {
-    const doc = await fetchJSON(`../data/${y}.json`);
+    const doc = await fetchJSON(`data/${y}.json`);
     if (!doc) continue;
     const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
     pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
