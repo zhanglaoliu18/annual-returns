@@ -21,7 +21,10 @@ DATA = ROOT / "data"
 POS_FILE = ROOT / "positions.json"
 TZ = timezone(timedelta(hours=8))
 
-KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{n},qfq"
+# 东方财富日K（不复权，全精度3位小数）。腾讯qfq接口会把ETF价格舍入到2位小数，不可用。
+KLINE_URL = ("https://push2his.eastmoney.com/api/qt/stock/kline/get"
+             "?secid={secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55"
+             "&klt=101&fqt=0&end=20500101&lmt={n}")
 
 
 def now() -> datetime:
@@ -30,13 +33,14 @@ def now() -> datetime:
 
 
 def fetch_kline(code: str, n: int = 12) -> list[dict]:
-    req = urllib.request.Request(KLINE_URL.format(code=code, n=n),
+    mkt, sym = code[:2], code[2:]
+    secid = ("1." if mkt == "sh" else "0.") + sym
+    req = urllib.request.Request(KLINE_URL.format(secid=secid, n=n),
                                  headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=15) as r:
         data = json.load(r)
-    node = data["data"][code]
-    rows = node.get("qfqday") or node.get("day") or []
-    return [{"date": r[0], "close": float(r[2])} for r in rows]
+    rows = data["data"]["klines"]  # "date,open,close,high,low"
+    return [{"date": r.split(",")[0], "close": float(r.split(",")[2])} for r in rows]
 
 
 def load_positions() -> list[dict]:
