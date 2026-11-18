@@ -1,0 +1,2 @@
+# 每天 15:10（北京时间）收盘后更新日收益；脚本幂等，节假日自动跳过
+10 15 * * * cd /app && GITHUB_TOKEN=$GITHUB_TOKEN python3 job/daily_update.py >> /app/data/job.log 2>&1
