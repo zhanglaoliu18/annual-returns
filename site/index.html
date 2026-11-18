@@ -11,6 +11,8 @@
   .wrap { max-width:1080px; margin:0 auto; }
   h1 { font-size:24px; font-weight:700; }
   .sub { color:var(--sub); font-size:13px; margin-top:6px; }
+  .head { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; }
+  .badge { font-size:11.5px; color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; padding:5px 11px; border-radius:999px; white-space:nowrap; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .kpi .l { font-size:12.5px; color:var(--sub); }
@@ -93,17 +95,19 @@ async function main() {
   const years = [];
   for (let y = 2022; y <= thisYear; y++) years.push(String(y));
 
-  /* 各年日盈亏汇总 */
+  const cal = base.ths_2026_calibration;
+
+  /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
   const pnlByYear = {};
   let lastUpdated = null;
   for (const y of years) {
     const doc = await fetchJSON(`../data/${y}.json`);
     if (!doc) continue;
-    pnlByYear[y] = doc.days.reduce((s, x) => s + x.pnl, 0);
+    const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
+    pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
     if (doc.updated_at) lastUpdated = doc.updated_at;
   }
 
-  const cal = base.ths_2026_calibration;
   const ths = {...base.accounts.ths};
   ths['2026'] = cal.base + (pnlByYear['2026'] || 0);
 
@@ -123,17 +127,15 @@ async function main() {
   }
   const nTot = gTot - cTot;
   const thsTotal = years.reduce((s,y) => s + (ths[y]||0), 0);
-  const bestY = years.reduce((a,b) => net[b] > net[a] ? b : a);
-  const worstY = years.reduce((a,b) => net[b] < net[a] ? b : a);
+  const finTotal = Object.values(fin.byYear).reduce((x,y) => x+y, 0);
 
   /* ---- 渲染 ---- */
   const app = document.getElementById('app');
 
   const kpis = `
-    <div class="kpi"><div class="l">五年净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
-    <div class="kpi"><div class="l">最佳年份 · ${bestY}</div><div class="v" style="color:${up(net[bestY])}">${signed(net[bestY],0)}</div><div class="n">净值口径</div></div>
-    <div class="kpi"><div class="l">最差年份 · ${worstY}</div><div class="v" style="color:${up(net[worstY])}">${fmt(net[worstY],0)}</div><div class="n">${worstY} 年</div></div>
-    <div class="kpi"><div class="l">资金成本合计</div><div class="v" style="color:${GREEN}">${fmt(-cTot,0)}</div><div class="n">女友利息 + 融资利息</div></div>`;
+    <div class="kpi"><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></div>
+    <div class="kpi"><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></div>
+    <div class="kpi"><div class="l">融资利息</div><div class="v" style="color:${GREEN}">${fmt(-finTotal,0)}</div><div class="n">年利率 3.8% · 截至 ${today}</div></div>`;
 
   /* 累计走势（毛收益累计） */
   let run = 0; const cum = years.map(y => { run += gross[y]; return {y, v: run}; });
@@ -165,7 +167,7 @@ async function main() {
   const sumRow = (() => {
     const a = years.reduce((s,y)=>s+aliCol[y],0), c = years.reduce((s,y)=>s+cmbCol[y],0);
     const g0 = v => `<td style="color:${up(v)}">${fmt(v)}</td>`;
-    return `<tr class="sum"><td>总计</td>${g0(a)}${g0(c)}${g0(thsTotal)}${g0(gTot)}${g0(-gf.total)}${g0(-Object.values(fin.byYear).reduce((x,y)=>x+y,0))}${g0(nTot)}</tr>`;
+    return `<tr class="sum"><td>总计</td>${g0(a)}${g0(c)}${g0(thsTotal)}${g0(gTot)}${g0(-gf.total)}${g0(-finTotal)}${g0(nTot)}</tr>`;
   })();
 
   /* 毛收益 vs 净收益柱图 */
@@ -191,8 +193,13 @@ async function main() {
 
   const lastDay = lastUpdated || '尚未记录';
   app.innerHTML = `
-    <h1>年度收益总览</h1>
-    <div class="sub">2022 – ${thisYear} · 支付宝 / 招商银行 / 同花顺 三账户合计 · 资金成本 = 女友借款利息（10% 单利）+ 融资利息（${fmt(base.costs.financing.daily,2)} 元/天）</div>
+    <div class="head">
+      <div>
+        <h1>年度收益总览</h1>
+        <div class="sub">2022 – ${thisYear} · 支付宝 / 招商银行 / 同花顺 三账户合计 · 资金成本 = 女友借款利息（10% 单利）+ 融资利息（${fmt(base.costs.financing.daily,2)} 元/天）</div>
+      </div>
+      <div class="badge">${thisYear} 为年内累计，尚未收官</div>
+    </div>
     <div class="kpis">${kpis}</div>
 
     <div class="card"><div class="ct"><h2>累计收益走势</h2><div class="d">三账户毛收益累计（元）</div></div>
