@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>我的账户 · 股票账户</title>
 <link rel="prefetch" href="index.html">
-<link rel="prefetch" as="fetch" href="positions.json" crossorigin>
-<link rel="prefetch" as="fetch" href="data/baseline.json" crossorigin>
-<link rel="prefetch" as="fetch" href="data/gf_loan.json" crossorigin>
+<link rel="prefetch" as="fetch" href="data/portfolio/positions.json" crossorigin>
+<link rel="prefetch" as="fetch" href="data/costs/baseline.json" crossorigin>
+<link rel="prefetch" as="fetch" href="data/loan/gf_loan.json" crossorigin>
 <style>
   :root { --ink:#111827; --sub:#6B7280; --line:#E6E8EC; --up:#DC2626; --down:#16A34A; --accent:#1D4ED8; --gray:#CBD5E1; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -142,7 +142,7 @@ function render(D) {
   const list = pos.positions;
   const last = day.days[day.days.length - 1];
 
-  /* --- 持仓：股数(positions.json) × 收盘价(data/年份.json) --- */
+  /* --- 持仓：股数(data/portfolio/positions.json) × 收盘价(data/daily/年份.json) --- */
   const rows = list.map(p => {
     const price = last.closes[p.code];
     const mv = p.shares * price;
@@ -167,7 +167,6 @@ function render(D) {
   const debt = (fin.principal || 0) + accrued;
   const net = mvTot - debt;
   const ratio = debt > 0 ? mvTot / debt * 100 : 0;
-  const lev = mvTot > 0 ? debt / mvTot * 100 : 0;
   const annual = fin.principal ? fin.daily * 360 / fin.principal * 100 : 0;
   const netRet = (costTot - debt) > 0 ? cumPnl / (costTot - debt) * 100 : 0;
 
@@ -227,13 +226,11 @@ function render(D) {
   document.getElementById('finGrid').innerHTML = [
     { l: '融资负债', v: fmt(debt), n: '本金 ' + fmt(fin.principal || 0) + ' + 应计 ' + fmt(accrued) },
     { l: '每日利息', v: fmt(fin.daily), n: '自 ' + fin.start + ' 起' },
-    { l: '月息估算', v: fmt(fin.daily * 30), n: '30 天 · 单利' },
     { l: '本周期累计利息', v: fmt(accrued), n: days + ' 天 · 含当日' },
-    { l: y + ' 年利息合计', v: fmt(fixedY + accrued), n: '已发生 ' + fmt(fixedY) + ' + 本周期' },
-    { l: '杠杆率', v: lev.toFixed(1) + '%', n: '负债 ÷ 总市值' }
+    { l: y + ' 年利息合计', v: fmt(fixedY + accrued), n: '已发生 ' + fmt(fixedY) + ' + 本周期' }
   ].map(c => `<div class="cell"><div class="l">${c.l}</div><div class="v">${c.v}</div><div class="n">${c.n}</div></div>`).join('');
 
-  /* --- 再平衡（目标权重与容差读自 positions.json） --- */
+  /* --- 再平衡（目标权重与容差读自 data/portfolio/positions.json） --- */
   const band = pos.rebalance_band || 5;
   document.getElementById('tgtTxt').textContent = rows.map(r => r.target).join('/');
   document.getElementById('rebRule').textContent =
@@ -270,21 +267,22 @@ function render(D) {
 
   /* --- 页脚 --- */
   document.getElementById('foot').innerHTML =
-    '· 数据来源：<span style="font-family:ui-monospace,monospace">positions.json</span>（持仓 / 成本 / 目标权重）· ' +
-    '<span style="font-family:ui-monospace,monospace">data/' + y + '.json</span>（每日收盘价与盈亏）· ' +
-    '<span style="font-family:ui-monospace,monospace">data/baseline.json</span>（融资本金 / 日息），数据更新 ' + (day.updated_at || '—') + '。<br>' +
+    '· 数据来源：<span style="font-family:ui-monospace,monospace">data/portfolio/positions.json</span>（持仓 / 成本 / 目标权重）· ' +
+    '<span style="font-family:ui-monospace,monospace">data/daily/' + y + '.json</span>（每日收盘价与盈亏）· ' +
+    '<span style="font-family:ui-monospace,monospace">data/costs/baseline.json</span>（融资本金 / 日息），数据更新 ' + (day.updated_at || '—') + '。<br>' +
     '· 市值 = 股数 × 收盘价；累计盈亏 = 市值 − 持仓成本；负债 = 本金 + 日息 × 已计天数（含当日）；担保比例 = 总市值 ÷ 负债；本人净资产 = 总市值 − 融资负债 − 女友负债（借款本金 + 10% 单利）。<br>' +
-    '· 场内溢价与 IOPV 由每日任务从行情接口采集（写进当天的 data/<年>.json）；缺失时回落到 positions.json 里的手动快照。本页仅为持仓记录，不构成投资建议。';
+    '· 场内溢价与 IOPV 由每日任务从行情接口采集（写进当天的 data/daily/<年>.json）；缺失时回落到 data/portfolio/positions.json 里的手动快照。本页仅为持仓记录，不构成投资建议。';
 }
 
 /* --- 载入三份数据后渲染 --- */
 (async () => {
   const yr = TODAY.slice(0, 4);
   const [pos, base, gfl] = await Promise.all([
-    fetchJSON('positions.json', 1), fetchJSON('data/baseline.json', 1), fetchJSON('data/gf_loan.json', 1)
+    fetchJSON('data/portfolio/positions.json', 1), fetchJSON('data/costs/baseline.json', 1),
+    fetchJSON('data/loan/gf_loan.json', 1)
   ]);
-  let day = await fetchJSON('data/' + yr + '.json', 1);
-  if (!day) day = await fetchJSON('data/' + (Number(yr) - 1) + '.json', 1);
+  let day = await fetchJSON('data/daily/' + yr + '.json', 1);
+  if (!day) day = await fetchJSON('data/daily/' + (Number(yr) - 1) + '.json', 1);
   if (!pos || !base || !gfl || !day || !day.days || !day.days.length) {
     document.getElementById('sub').textContent = '数据加载失败，请刷新重试';
     document.getElementById('top').innerHTML = '<div class="loading">数据加载失败</div>';

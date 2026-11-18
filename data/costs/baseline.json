@@ -1,5 +1,5 @@
 {
-  "_comment": "历史存量基期。accounts: 各账户各自然年盈亏（元）。ths_2026_calibration: 同花顺2026年收益的校准点——每日任务只追加校准日之后的ETF日盈亏，前端用 base + Σ(pnl.date > as_of) 计算2026同花顺。 stocks_part: 同花顺App年收益含股票持仓浮动盈亏，本系统每日只自动跟踪两只ETF；股票盈亏的漂移靠人工更新校准点消除（给一个新的快照数字+日期即可）。 女友借款流水见 data/gf_loan.json。",
+  "_comment": "历史存量基期。accounts: 各账户各自然年盈亏（元）。ths_2026_calibration: 同花顺2026年收益的校准点——每日任务只追加校准日之后的ETF日盈亏，前端用 base + Σ(pnl.date > as_of) 计算2026同花顺。 stocks_part: 同花顺App年收益含股票持仓浮动盈亏，本系统每日只自动跟踪两只ETF；股票盈亏的漂移靠人工更新校准点消除（给一个新的快照数字+日期即可）。 女友借款流水见 data/loan/gf_loan.json。",
   "accounts": {
     "alipay": {
       "2022": -22088.79,
@@ -39,7 +39,7 @@
         "2026": 50268
       }
     },
-    "_gf_loan_note": "女友借款流水已统一到 data/gf_loan.json（唯一数据源），此处不再保存副本。"
+    "_gf_loan_note": "女友借款流水已统一到 data/loan/gf_loan.json（唯一数据源），此处不再保存副本。"
   },
   "check": {
     "ths_history_total": 806967.59,

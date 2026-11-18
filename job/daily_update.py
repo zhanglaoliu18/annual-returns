@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""每日 15:10 收盘后：拉两只 ETF 收盘价 → 追加当日盈亏到 data/<year>.json → commit+push。
+"""每日 15:10 收盘后：拉两只 ETF 收盘价 → 追加当日盈亏到 data/daily/<year>.json → commit+push。
 
 幂等：以日期为主键，已存在的日期重跑会覆盖（份额/收盘价变更后重跑即校正）。
 节假日：取行情接口最新交易日，若已记录则跳过，不空写。
@@ -17,8 +17,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
-POS_FILE = ROOT / "positions.json"
+DATA = ROOT / "data" / "daily"          # 按年归档的每日记录
+POS_FILE = ROOT / "data" / "portfolio" / "positions.json"
 REPO = "zhanglaoliu18/annual-returns"
 TZ = timezone(timedelta(hours=8))
 
@@ -239,7 +239,7 @@ def main() -> int:
     total = sum(c["pnl"] for c in changed)
     git("commit", "-m", f"data: {last} 大账户日盈亏 {total:+,.2f}")
     git("push", "origin", "HEAD")
-    purge_jsdelivr([f"data/{d[:4]}.json" for d in {c["date"] for c in changed}])
+    purge_jsdelivr([f"data/daily/{d[:4]}.json" for d in {c["date"] for c in changed}])
     print(json.dumps({"applied": True, "changed": changed, "pushed": True}, ensure_ascii=False))
     return 0
 

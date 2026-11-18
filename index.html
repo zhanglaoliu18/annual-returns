@@ -6,8 +6,7 @@
 <title>年度收益总览 · 大账户</title>
 <link rel="prefetch" href="girlfriend-settlement.html">
 <link rel="prefetch" href="my-account.html">
-<link rel="prefetch" as="fetch" href="data/gf_loan.json" crossorigin>
-<link rel="prefetch" as="fetch" href="data/settlement.json" crossorigin>
+<link rel="prefetch" as="fetch" href="data/loan/gf_loan.json" crossorigin>
 <style>
   :root { --ink:#111827; --sub:#6B7280; --line:#E6E8EC; --up:#DC2626; --down:#16A34A; --accent:#1D4ED8; --gray:#CBD5E1; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -115,7 +114,7 @@ const allYears = (() => { const a = []; for (let y = 2022; y <= new Date().getUT
 async function loadData(base) {
   const since = base.daily_since || '2026';
   const fetchYears = allYears.filter(y => y >= since);
-  const yearDocs = await Promise.all(fetchYears.map(y => fetchJSON(`data/${y}.json`)));
+  const yearDocs = await Promise.all(fetchYears.map(y => fetchJSON(`data/daily/${y}.json`)));
   return { base, yearDocs, years: allYears };
 }
 
@@ -124,7 +123,7 @@ async function boot() {
   try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) {}
   if (cached && cached.payload) renderFrom(cached.payload);   // 缓存秒开
 
-  const [base, gfl] = await Promise.all([fetchJSON('data/baseline.json'), fetchJSON('data/gf_loan.json')]);
+  const [base, gfl] = await Promise.all([fetchJSON('data/costs/baseline.json'), fetchJSON('data/loan/gf_loan.json')]);
   if (!base) { if (!cached) document.getElementById('app').innerHTML = '<div class="loading">数据加载失败，请检查网络后刷新</div>'; return; }
 
   const fresh = await loadData(base);
@@ -164,7 +163,7 @@ function main(base, yearDocs, years, gfl) {
   for (const y of years) gross[y] = aliCol[y] + cmbCol[y] + (ths[y] || 0);
 
   const today = d2s(new Date());
-  /* 女友借款流水统一来自 data/gf_loan.json（唯一数据源） */
+  /* 女友借款流水统一来自 data/loan/gf_loan.json（唯一数据源） */
   const gl = gfl || {rate: 0.1, basis: 365, flows: []};
   const gf = gfInterestByYear(gl.flows, gl.rate, gl.basis, today);
   const fin = finInterestByYear(base.costs.financing, today);

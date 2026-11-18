@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1" name="viewport">
 <title>女友投资结算页 · 10% 单利</title>
-<link rel="prefetch" as="fetch" href="data/gf_loan.json" crossorigin>
+<link rel="prefetch" as="fetch" href="data/loan/gf_loan.json" crossorigin>
 <style>
 *{box-sizing:border-box}
 :root{
@@ -286,7 +286,7 @@ details[open] summary::before{content:"− "}
 <div class="lightbox" id="lb"><img alt="转账凭据" id="lbimg"></div>
 
 <script>
-// 数据源：流水/利率 data/gf_loan.json（唯一数据源）· 缩略图 data/settlement.json · 原图 data/shots.json
+// 数据源：流水/利率 data/loan/gf_loan.json（唯一数据源）· 缩略图 data/loan/thumbs.json · 原图 data/loan/shots.json
 const BASE_CACHE = 'gf_base_cache_v1';    // 仓库数据缓存（含缩略图），秒开用
 const $ = s => document.querySelector(s);
 const tbody = $('#flows tbody');
@@ -309,7 +309,7 @@ async function fetchJSON(url) {
 
 let SHOTS = null;  // 原图字典，点击看大图时才加载
 async function ensureShots() {
-  if (!SHOTS) { const d = await fetchJSON('data/shots.json'); SHOTS = d && d.shots ? d.shots : {}; }
+  if (!SHOTS) { const d = await fetchJSON('data/loan/shots.json'); SHOTS = d && d.shots ? d.shots : {}; }
   return SHOTS;
 }
 
@@ -343,8 +343,8 @@ function applyParams() {
 }
 
 async function loadBase() {
-  /* 流水与利率来自 data/gf_loan.json（唯一数据源），缩略图来自 data/settlement.json */
-  const [loan, sett] = await Promise.all([fetchJSON('data/gf_loan.json'), fetchJSON('data/settlement.json')]);
+  /* 流水与利率来自 data/loan/gf_loan.json（唯一数据源），缩略图来自 data/loan/thumbs.json */
+  const [loan, sett] = await Promise.all([fetchJSON('data/loan/gf_loan.json'), fetchJSON('data/loan/thumbs.json')]);
   if (!loan || !Array.isArray(loan.flows)) return null;
   return { rate: loan.rate != null ? loan.rate * 100 : 10, basis: loan.basis || 365,
            flows: loan.flows, shots_t: (sett && sett.shots_t) || {} };
