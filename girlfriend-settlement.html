@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta content="width=device-width,initial-scale=1" name="viewport">
-<title>女友投资结算页 · 10% 单利</title>
+<title>女友投资结算页</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="prefetch" as="fetch" href="data/loan/gf_loan.json" crossorigin>
 <style>
 *{box-sizing:border-box}
@@ -159,12 +160,6 @@ details[open] summary::before{content:"− "}
   #flows td input:hover{background:#fff}
   #flows td input:focus{border-color:var(--brand2)}
   #flows td input::placeholder{font-size:12.5px}
-
-  /* 分段明细：手机端紧凑排版，避免横向滚动 */
-  .segs{min-width:0}
-  .segs th,.segs td{padding:8px 4px;font-size:12px}
-  .segs th:nth-child(1),.segs td:nth-child(1),
-  .segs th:nth-child(2),.segs td:nth-child(2){white-space:nowrap}
 }
 </style>
 </head>
@@ -441,7 +436,7 @@ $('#basis').addEventListener('change', calc);
   } catch (e) {}
 
   if (BASE) { applyParams(); renderRows(BASE.flows); }
-  else { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
+  else { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
 
   /* 后台拉最新仓库数据，拉到后重渲染并更新缓存 */
   const fresh = await loadBase();

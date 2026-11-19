@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>年度收益总览 · 大账户</title>
+<title>年度收益总览</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="prefetch" href="girlfriend-settlement.html">
 <link rel="prefetch" href="my-account.html">
 <link rel="prefetch" as="fetch" href="data/loan/gf_loan.json" crossorigin>
@@ -146,13 +147,11 @@ function main(base, yearDocs, years, gfl) {
 
   /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
   const pnlByYear = {};
-  let lastUpdated = null;
   years.forEach((y, i) => {
     const doc = yearDocs[i];
     if (!doc) return;
     const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
     pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
-    if (doc.updated_at) lastUpdated = doc.updated_at;
   });
 
   const ths = {...base.accounts.ths};
@@ -240,7 +239,6 @@ function main(base, yearDocs, years, gfl) {
     bars += `<text x="${c.toFixed(1)}" y="404" fill="#6B7280" font-size="12.5" text-anchor="middle">${y}</text>`;
   });
 
-  const lastDay = lastUpdated || '尚未记录';
   app.innerHTML = `
     <div class="head">
       <div>

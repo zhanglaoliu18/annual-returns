@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>我的账户 · 股票账户</title>
+<title>我的账户</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="prefetch" href="index.html">
 <link rel="prefetch" as="fetch" href="data/portfolio/positions.json" crossorigin>
 <link rel="prefetch" as="fetch" href="data/costs/baseline.json" crossorigin>
@@ -68,7 +69,7 @@
 <div class="wrap">
   <div class="head">
     <div>
-      <h1>我的账户 · 股票账户</h1>
+      <h1>我的账户</h1>
       <div class="sub" id="sub">数据加载中…</div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
@@ -148,7 +149,6 @@ function render(D) {
     return {...p, price, mv, costAmt, pnl: mv - costAmt, pnlPct: (mv - costAmt) / costAmt * 100};
   });
   const mvTot = rows.reduce((s, r) => s + r.mv, 0);
-  const costTot = rows.reduce((s, r) => s + r.costAmt, 0);
   rows.forEach(r => r.weight = r.mv / mvTot * 100);
 
   /* --- 盈亏：日/月取 data 里记录的 pnl；累计 = 市值 − 成本 --- */
@@ -156,8 +156,6 @@ function render(D) {
   const dayPnl = last.pnl;
   const dayBase = mvTot - dayPnl;                       // 当日涨跌基准市值
   const dayPct = dayBase ? dayPnl / dayBase * 100 : 0;
-  const cumPnl = mvTot - costTot;
-  const cumPct = costTot ? cumPnl / costTot * 100 : 0;
 
   /* --- 负债：本金 + 日息 × 已计天数（start 当天记 1 天） --- */
   const days = Math.max(0, dayDiff(fin.start, TODAY) + 1);
@@ -166,7 +164,6 @@ function render(D) {
   const net = mvTot - debt;
   const ratio = debt > 0 ? mvTot / debt * 100 : 0;
   const annual = fin.principal ? fin.daily * 360 / fin.principal * 100 : 0;
-  const netRet = (costTot - debt) > 0 ? cumPnl / (costTot - debt) * 100 : 0;
 
   /* --- 女友负债：借款本金 + 10% 单利（分段计息，与首页一致） --- */
   const gfFlows = [...gfl.flows].sort((a, b) => a.date < b.date ? -1 : 1);
