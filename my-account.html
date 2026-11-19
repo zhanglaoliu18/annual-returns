@@ -17,7 +17,6 @@
   h1 { font-size:24px; font-weight:700; }
   .sub { color:var(--sub); font-size:13px; margin-top:6px; }
   .head { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; }
-  .badge { font-size:11.5px; color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; padding:5px 11px; border-radius:999px; white-space:nowrap; }
   .stale { display:inline-block; font-size:10.5px; color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5; padding:1.5px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
@@ -74,7 +73,6 @@
       <div class="sub" id="sub">数据加载中…</div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <span class="badge" id="badge" style="display:none"></span>
       <a href="index.html" style="font-size:13px;color:var(--accent);text-decoration:none">← 返回总览</a>
     </div>
   </div>
@@ -187,9 +185,6 @@ function render(D) {
 
   /* --- 头部 --- */
   document.getElementById('sub').textContent = TODAY + ' ' + WD + ' · 两融持仓 · 当日 ' + pct(dayPct);
-  const badge = document.getElementById('badge');
-  badge.style.display = '';
-  badge.textContent = '当日 ' + signed(dayPnl) + ' · 担保 ' + ratio.toFixed(1) + '%';
 
   /* --- 顶部三卡 --- */
   const stale = last.date !== TODAY ? ' · 数据 ' + last.date.slice(5) : '';

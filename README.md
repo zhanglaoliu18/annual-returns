@@ -4,7 +4,7 @@
 
 - **数据层**：`data/` 下的 JSON，git 留痕；按用途分 4 个子目录（持仓 / 每日归档 / 成本基准 / 借款）
 - **展示层**：三个静态页（GitHub Pages 托管），打开时读 JSON 现算现渲染
-- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：首页「更新今日收益」按钮手动触发（workflow_dispatch），收盘后点一下即可
+- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**打开首页时静默自检**——工作日 15:05 后若当日数据未写入，页面后台自动 dispatch（workflow_dispatch）触发一次，10 分钟内不重复；无需手动操作
 
 ## 页面
 
@@ -52,7 +52,7 @@ data/
 
 ## 部署
 
-GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 手动触发（首页「更新今日收益」按钮）跑 `job/daily_update.py`；`on: push` 触发 Pages 发布。免费版 Pages 需公开仓库。
+GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 触发（首页打开时静默自检自动 dispatch，无按钮）跑 `job/daily_update.py`；`on: push` 触发 Pages 发布。免费版 Pages 需公开仓库。
 
 ## 本地跑
 

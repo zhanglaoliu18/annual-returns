@@ -17,11 +17,6 @@
   .sub { color:var(--sub); font-size:13px; margin-top:6px; }
   .head { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; }
   .badge { font-size:11.5px; color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; padding:5px 11px; border-radius:999px; white-space:nowrap; }
-  .badge-btn { cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:600; }
-  .badge-btn:hover { background:#FDE68A; }
-  .badge-btn:disabled { opacity:.65; cursor:default; }
-  .badge-btn.ok { color:#166534; background:#DCFCE7; border-color:#86EFAC; }
-  .badge-btn.err { color:#991B1B; background:#FEE2E2; border-color:#FCA5A5; }
   .stale { display:inline-block; font-size:10.5px; color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5; padding:1.5px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
@@ -150,57 +145,36 @@ async function boot() {
   const payload = { base, gfl: gfl || null, yearDocs, years: allYears };
   if (!cached || cacheDiffers(payload, cached.payload)) renderFrom(payload);   // 数据有变化才重绘
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved_at: Date.now(), payload })); } catch (e) {}
+  autoUpdateMaybe(payload);                              // 数据仍是昨日时，静默触发更新任务
   return payload;
 }
 boot();
 
-/* 手动触发每日数据更新：dispatch workflow → 展示更新中 → 等待后绕缓存刷新页面 */
+/* 打开页面时静默自检：工作日 15:05 后若当日数据尚未写入，后台触发更新任务（不打扰用户） */
 const GH_API = 'https://api.github.com/repos/zhanglaoliu18/annual-returns';
 const GH_TOKEN = 'github_pat_' + '11AIBA6KA0nUJtt6xjukQ9_FeJwlF' + '3Huq8zM1hnyEDvxNsibmA2q8WC8JwDq1qgnK1H53FYFRQPL1eemSg';   // fine-grained token，仅 Actions 触发权限，可公开
+const AUTO_UPD_KEY = 'auto_upd_last';
 
-async function updateToday(btn) {
-  if (btn.dataset.busy) return;
-  btn.dataset.busy = '1';
-  btn.disabled = true;
-  btn.classList.remove('ok', 'err');
-  const orig = '更新今日收益';
+function autoUpdateMaybe(payload) {
   try {
-    btn.textContent = '触发中…';
-    const r = await fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
+    const bjDate = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+    const dow = new Date(bjDate + 'T12:00:00+08:00').getDay();
+    if (dow < 1 || dow > 5) return;                      // 周末：job 本就跳过，不触发
+    const bjHHmm = new Date().toLocaleTimeString('sv-SE', {timeZone: 'Asia/Shanghai', hour12: false}).slice(0, 5);
+    if (bjHHmm < '15:05') return;                        // 盘中：收盘价未定，job 也不会写入
+    const doc = payload && payload.yearDocs && payload.yearDocs[payload.yearDocs.length - 1];
+    const days = (doc && doc.days) || [];
+    const lastDay = days.length ? days[days.length - 1].date : '';
+    if (lastDay >= bjDate) return;                       // 已是最新，无需触发
+    const last = Number(localStorage.getItem(AUTO_UPD_KEY) || 0);
+    if (Date.now() - last < 10 * 60 * 1000) return;      // 10 分钟内已触发过，防重复
+    localStorage.setItem(AUTO_UPD_KEY, String(Date.now()));
+    fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ ref: 'main' })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    btn.textContent = '更新中…';
-
-    /* 固定等待任务跑完（一般约 40-60 秒），随后绕缓存刷新 */
-    await new Promise(res => setTimeout(res, 70000));
-
-    /* 绕过浏览器与 Pages CDN 缓存强制刷新；当日数据未到位再补等一次（节假日 job 自动跳过，重试后仍放行） */
-    const todayStr = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
-    for (let i = 0; i < 2; i++) {
-      localStorage.removeItem(CACHE_KEY);
-      window.__noCache = true;
-      const fresh = await boot();
-      window.__noCache = false;
-      const doc = fresh && fresh.yearDocs && fresh.yearDocs[fresh.yearDocs.length - 1];
-      const lastDay = doc && doc.days && doc.days.length ? doc.days[doc.days.length - 1].date : '';
-      if (lastDay >= todayStr || i === 1) break;
-      await new Promise(res => setTimeout(res, 30000));
-    }
-    btn.textContent = '✅ 已更新至最新';
-    btn.classList.add('ok');
-  } catch (e) {
-    btn.textContent = '❌ ' + e.message;
-    btn.classList.add('err');
-  }
-  setTimeout(() => {
-    btn.textContent = orig;
-    btn.classList.remove('ok', 'err');
-    btn.disabled = false;
-    delete btn.dataset.busy;
-  }, 4000);
+    }).catch(() => {});                                  // 静默：失败不打扰用户，10 分钟后下次进页再试
+  } catch (e) {}
 }
 
 function renderFrom(cacheObj) {
@@ -326,7 +300,6 @@ function main(base, yearDocs, years, gfl) {
         <h1>年度收益总览</h1>
         <div class="sub">2022 – ${thisYear} · 支付宝 / 招商银行 / 同花顺 三账户合计 · 资金成本 = 女友借款利息（10% 单利）+ 融资利息（${fmt(base.costs.financing.daily,2)} 元/天）</div>
       </div>
-      <button class="badge badge-btn" id="updBtn" title="触发每日收盘数据更新（约 20–40 秒后自动刷新）">更新今日收益</button>
     </div>
     <div class="kpis">${kpis}</div>
 
@@ -345,8 +318,6 @@ function main(base, yearDocs, years, gfl) {
 
   /* 图表悬浮提示：鼠标移到数据点/柱子上显示明细 */
   const tipEl = document.getElementById('tip');
-  const updBtn = document.getElementById('updBtn');
-  if (updBtn) updBtn.addEventListener('click', () => updateToday(updBtn));
   document.addEventListener('mousemove', e => {
     const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
     if (t) {
