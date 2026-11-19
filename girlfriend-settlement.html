@@ -286,11 +286,12 @@ let FLOWS = [];       // 当前展示的流水（数据数组，计算用）
 
 /* 数据文件源站优先（新鲜可靠），jsDelivr 备用；原图几乎不变，CDN 优先 */
 const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
-async function fetchJSON(url) {
+async function fetchJSON(url, tries = 0) {
   const candidates = url.includes('shots.json') ? [CDN + url, url] : [url, CDN + url];
   for (const u of candidates) {
     try { const r = await fetch(u, {cache: 'no-cache'}); if (r.ok) return await r.json(); } catch (e) {}
   }
+  if (tries > 0) { await new Promise(res => setTimeout(res, 600)); return fetchJSON(url, tries - 1); }
   return null;
 }
 
@@ -305,12 +306,14 @@ function renderRows(flows) {
   calc();
 }
 
-function applyParams() {
-  $('#rate').value = BASE ? BASE.rate : 10;
-  $('#basis').value = String(BASE ? BASE.basis : 365);
-  const now = new Date();
-  const p = n => String(n).padStart(2, '0');
-  $('#end').value = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
+/* 用户手动改过的参数后台刷新时不覆盖 */
+const paramDirty = { rate: false, basis: false, end: false };
+const bjTodayStr = () => new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
+
+function applyParams(force) {
+  if (force || !paramDirty.rate) $('#rate').value = BASE ? BASE.rate : 10;
+  if (force || !paramDirty.basis) $('#basis').value = String(BASE ? BASE.basis : 365);
+  if (force || !paramDirty.end) $('#end').value = bjTodayStr();
 }
 
 async function loadBase() {
@@ -328,7 +331,7 @@ function calc() {
   const endStr = $('#end').value;
 
   let warn = '';
-  const sorted = FLOWS.slice().sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1);
+  const sorted = FLOWS.slice().sort((a, b) => (a.date || '') < (b.date || '') ? -1 : (a.date || '') > (b.date || '') ? 1 : 0);
   const evs = [];
   sorted.forEach((f, i) => { if (f.date && !isNaN(f.amount)) evs.push({ d: D(f.date), a: f.amount, i }); });
 
@@ -339,7 +342,7 @@ function calc() {
   evs.forEach(e => {
     if (prevIdx >= 0) {
       const n = Math.round((e.d - prevD) / 86400000);
-      if (n > 0 && bal !== 0) {
+      if (n > 0 && bal > 0) {
         daysum += bal * n;
         const seg = { t: e.d, n, bal, acc: bal * n };
         segs.push(seg); segByRow[prevIdx] = seg;
@@ -355,7 +358,7 @@ function calc() {
     const end = D(endStr);
     const n = Math.round((end - prevD) / 86400000);
     if (n < 0) warn = '结算日早于最后一笔流水日期，请检查日期。';
-    if (n > 0 && bal !== 0) {
+    if (n > 0 && bal > 0) {
       daysum += bal * n;
       const seg = { t: end, n, bal, acc: bal * n };
       segs.push(seg); segByRow[prevIdx] = seg;
@@ -367,8 +370,7 @@ function calc() {
 
   const interest = daysum * rate / 100 / basis;
   const total = bal + interest;
-  const firstD = evs.length ? evs[0].d : null;
-  const spanDays = (firstD && endStr) ? Math.round((D(endStr) - firstD) / 86400000) : 0;
+  const segDays = segs.reduce((s, x) => s + x.n, 0);   /* 各段计息天数之和，与下方分段天数可对账 */
 
   $('#kIn').textContent = fmt(inSum);
   $('#kInN').textContent = nIn + ' 笔转入';
@@ -376,7 +378,7 @@ function calc() {
   $('#kOutN').textContent = nOut + ' 笔取出';
   $('#kBal').textContent = fmt(bal);
   $('#kInt').textContent = fmt(interest);
-  $('#kIntN').textContent = '按 ' + spanDays + ' 天单利计息';
+  $('#kIntN').textContent = '按 ' + segDays + ' 天计息（分段累计）';
   $('#kTotal').textContent = fmt(total);
   $('#kTotalN').textContent = '本金 ' + fmt(bal) + ' + 利息 ' + fmt(interest);
   $('#asof').textContent = endStr ? '截至 ' + endStr : '';
@@ -406,7 +408,7 @@ function calc() {
 
   tbody.innerHTML = rows +
     '<tr class="sum"><td>合计</td><td></td><td></td><td></td>' +
-    '<td class="r seg-d">' + spanDays + '</td><td class="r seg-bal">—</td>' +
+    '<td class="r seg-d">' + segDays + '</td><td class="r seg-bal">—</td>' +
     '<td class="r seg-int">' + fmt(interest) + '</td></tr>';
 }
 
@@ -422,7 +424,7 @@ document.addEventListener('click', e => {
 });
 $('#lb').onclick = () => $('#lb').classList.remove('show');
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#lb').classList.remove('show'); });
-['#rate', '#basis', '#end'].forEach(s => $(s).addEventListener('input', calc));
+['#rate', '#basis', '#end'].forEach(s => $(s).addEventListener('input', () => { paramDirty[s.slice(1)] = true; calc(); }));
 $('#basis').addEventListener('change', calc);
 
 // 初始化：优先仓库 JSON，叠加本机保存的流水
@@ -433,16 +435,21 @@ $('#basis').addEventListener('change', calc);
     if (c && Array.isArray(c.flows)) { BASE = c; }
   } catch (e) {}
 
-  if (BASE) { applyParams(); renderRows(BASE.flows); }
-  else { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
+  if (BASE) { applyParams(true); renderRows(BASE.flows); }
+  else { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
 
-  /* 后台拉最新仓库数据，拉到后重渲染并更新缓存 */
+  /* 后台拉最新仓库数据；数据有变化才重渲染，且不覆盖用户已修改的参数 */
   const fresh = await loadBase();
   if (fresh && Array.isArray(fresh.flows)) {
-    BASE = fresh;
-    try { localStorage.setItem(BASE_CACHE, JSON.stringify(BASE)); } catch (e) {}
-    applyParams();
-    renderRows(BASE.flows);
+    const changed = !BASE ||
+      JSON.stringify([fresh.flows, fresh.rate, fresh.basis, fresh.shots_t]) !==
+      JSON.stringify([BASE.flows, BASE.rate, BASE.basis, BASE.shots_t]);
+    if (changed) {
+      BASE = fresh;
+      try { localStorage.setItem(BASE_CACHE, JSON.stringify(BASE)); } catch (e) {}
+      applyParams();   /* 首次加载填充默认值（利率/基准/截止日=今天）；用户已手动改过的参数不覆盖 */
+      renderRows(BASE.flows);
+    }
   }
 })();
 </script>

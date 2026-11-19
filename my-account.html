@@ -142,22 +142,40 @@ function render(D) {
   const last = day.days[day.days.length - 1];
 
   /* --- 持仓：股数(data/portfolio/positions.json) × 收盘价(data/daily/年份.json) --- */
-  const rows = list.map(p => {
+  /* 收盘价缺失的持仓跳过，避免 NaN 连锁污染全部合计 */
+  const rowsAll = list.map(p => {
     const price = last.closes[p.code];
-    const mv = p.shares * price;
+    const mv = price != null ? p.shares * price : NaN;
     const costAmt = p.shares * p.cost;
-    return {...p, price, mv, costAmt, pnl: mv - costAmt, pnlPct: (mv - costAmt) / costAmt * 100};
+    return {...p, price, mv, costAmt, pnl: mv - costAmt, pnlPct: mv / costAmt * 100 - 100};
   });
+  const rows = rowsAll.filter(r => r.price != null);
+  const missingN = rowsAll.length - rows.length;
   const mvTot = rows.reduce((s, r) => s + r.mv, 0);
   rows.forEach(r => r.weight = r.mv / mvTot * 100);
 
   /* --- 盈亏：日/月取 data 里记录的 pnl；累计 = 市值 − 成本 --- */
   const y = day.year;
   const dayPnl = last.pnl;
-  const dayBase = mvTot - dayPnl;                       // 当日涨跌基准市值
+  /* 当日涨跌基准：优先用日记录的 shares 快照（与 job 口径一致），无快照时退回当前持仓市值 */
+  const dayMv = (last.shares && Object.keys(last.shares).length)
+    ? Object.entries(last.shares).reduce((s, [c, sh]) => s + sh * (last.closes[c] || 0), 0)
+    : mvTot;
+  const dayBase = dayMv - dayPnl;
   const dayPct = dayBase ? dayPnl / dayBase * 100 : 0;
 
   /* --- 负债：本金 + 日息 × 已计天数（start 当天记 1 天） --- */
+  /* 按年切分：[start, TODAY] 段跨 12-31 时拆段分别归年，避免新年份把去年尾巴错算进当年合计 */
+  const finByYear = {};
+  {
+    let a = fin.start;
+    while (a && a <= TODAY) {
+      const yy = a.slice(0, 4);
+      const e = (yy + '-12-31') < TODAY ? (yy + '-12-31') : TODAY;
+      finByYear[yy] = (finByYear[yy] || 0) + fin.daily * (dayDiff(a, e) + 1);
+      a = e === TODAY ? null : (Number(yy) + 1) + '-01-01';
+    }
+  }
   const days = Math.max(0, dayDiff(fin.start, TODAY) + 1);
   const accrued = fin.daily * days;
   const debt = (fin.principal || 0) + accrued;
@@ -166,7 +184,7 @@ function render(D) {
   const annual = fin.principal ? fin.daily * 360 / fin.principal * 100 : 0;
 
   /* --- 女友负债：借款本金 + 10% 单利（分段计息，与首页一致） --- */
-  const gfFlows = [...gfl.flows].sort((a, b) => a.date < b.date ? -1 : 1);
+  const gfFlows = [...gfl.flows].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   let gfBal = 0, gfPrev = null, gfDays = 0;
   for (const f of gfFlows) {
     if (gfPrev) gfDays += gfBal * dayDiff(gfPrev, f.date);
@@ -197,7 +215,7 @@ function render(D) {
   document.getElementById('maintNote').textContent = ratio < 150 ? '⚠️ 低于追保线' : (ratio < 300 ? '正常 · 未到可提取线' : '正常');
   document.getElementById('netA').textContent = fmt(net);
   document.getElementById('mvTot').textContent = fmt(mvTot);
-  document.getElementById('mvNote').textContent = rows.length + ' 只 · ' + last.date + ' 收盘';
+  document.getElementById('mvNote').textContent = rows.length + ' 只 · ' + last.date + ' 收盘' + (missingN ? ' · ' + missingN + ' 只无收盘价未计入' : '');
 
   /* 分区刻度：四个档位等宽分段，档位间隔悬殊也不会挤在一起 */
   const BANDS = [
@@ -222,7 +240,7 @@ function render(D) {
     { l: '融资负债', v: fmt(debt), n: '本金 ' + fmt(fin.principal || 0) + ' + 应计 ' + fmt(accrued) },
     { l: '每日利息', v: fmt(fin.daily), n: '自 ' + fin.start + ' 起' },
     { l: '本周期累计利息', v: fmt(accrued), n: days + ' 天 · 含当日' },
-    { l: y + ' 年利息合计', v: fmt(fixedY + accrued), n: '已发生 ' + fmt(fixedY) + ' + 本周期' }
+    { l: y + ' 年利息合计', v: fmt(fixedY + (finByYear[y] || 0)), n: '已发生 ' + fmt(fixedY) + ' + 本周期' }
   ].map(c => `<div class="cell"><div class="l">${c.l}</div><div class="v">${c.v}</div><div class="n">${c.n}</div></div>`).join('');
 
   /* --- 再平衡（目标权重与容差读自 data/portfolio/positions.json） --- */
@@ -275,7 +293,7 @@ function render(D) {
     document.getElementById('top').innerHTML = '<div class="loading">数据加载失败</div>';
     return;
   }
-  day.days.sort((a, b) => a.date < b.date ? -1 : 1);
+  day.days.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   render({ pos, day, base, gfl });
 })();
 </script>
