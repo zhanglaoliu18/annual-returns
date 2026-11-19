@@ -135,8 +135,8 @@ details[open] summary::before{content:"− "}
   /* 流水表 → 卡片式 */
   #flows thead{display:none}
   #flows tbody{display:block}
-  #flows tr{display:grid;grid-template-columns:1fr 1.1fr 28px;
-    grid-template-areas:"date date del" "amt note note" "shot shot shot" "seg1 seg1 seg1" "seg2 seg2 seg2" "seg3 seg3 seg3";
+  #flows tr{display:grid;grid-template-columns:1fr 1.1fr;
+    grid-template-areas:"date date" "amt note" "shot shot" "seg1 seg1" "seg2 seg2" "seg3 seg3";
     gap:7px;padding:11px;border:1px solid var(--line);border-radius:10px;
     background:#fbfcfd;margin-bottom:9px}
   #flows tbody tr:last-child{margin-bottom:0}
@@ -146,16 +146,12 @@ details[open] summary::before{content:"− "}
   #flows td:nth-child(2){grid-area:amt}
   #flows td:nth-child(3){grid-area:note}
   #flows td:nth-child(4){grid-area:shot}
-  #flows td:nth-child(5){grid-area:del;display:flex;align-items:center;justify-content:flex-end}
-  #flows td:nth-child(6){grid-area:seg1;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td:nth-child(7){grid-area:seg2;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td:nth-child(8){grid-area:seg3;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td:nth-child(6)::before{content:"计息天数";}
-  #flows td:nth-child(7)::before{content:"期间余额 ";}
-  #flows td:nth-child(8)::before{content:"该段利息 ";}
-  #flows td:nth-child(6)::before,#flows td:nth-child(7)::before,#flows td:nth-child(8)::before{
-    color:var(--ink3);font-size:11.5px}
-  #flows tr.sum td:nth-child(6),#flows tr.sum td:nth-child(7),#flows tr.sum td:nth-child(8){display:none}
+  #flows td.seg-d{grid-area:seg1;display:flex;justify-content:space-between;padding:0 2px}
+  #flows td.seg-bal{grid-area:seg2;display:flex;justify-content:space-between;padding:0 2px}
+  #flows td.seg-int{grid-area:seg3;display:flex;justify-content:space-between;padding:0 2px}
+  #flows td.seg-d::before{content:"计息天数";color:var(--ink3);font-size:11.5px}
+  #flows td.seg-bal::before{content:"期间余额";color:var(--ink3);font-size:11.5px}
+  #flows td.seg-int::before{content:"该段利息";color:var(--ink3);font-size:11.5px}
   #flows .thumb{width:158px;height:46px}
   #flows td input{background:#fff;border:1px solid var(--line);padding:9px 11px;font-size:14px}
   #flows td input:hover{background:#fff}
@@ -386,7 +382,7 @@ function calc() {
 
   /* 合并表：每行 = 一笔流水 + 该笔之后的计息段 */
   const intOf = s => fmt(s.acc * rate / 100 / basis);
-  const dash = '<td class="r" style="color:#c6cdd7">—</td>';
+  const dash = c => '<td class="r ' + c + '" style="color:#c6cdd7">—</td>';
   const rows = sorted.map((f, i) => {
     const k = f.shot || '';
     const a = f.amount || 0;
@@ -395,8 +391,8 @@ function calc() {
     const cls = a >= 0 ? 'in' : 'out';
     const s = segByRow[i];
     const seg = s
-      ? '<td class="r">' + s.n + '</td><td class="r">' + fmt(s.bal) + '</td><td class="r">' + intOf(s) + '</td>'
-      : dash + dash + dash;
+      ? '<td class="r seg-d">' + s.n + '</td><td class="r seg-bal">' + fmt(s.bal) + '</td><td class="r seg-int">' + intOf(s) + '</td>'
+      : dash('seg-d') + dash('seg-bal') + dash('seg-int');
     return '<tr>' +
       '<td>' + dt + '</td>' +
       '<td class="num ' + cls + '">' + amt + '</td>' +
@@ -409,8 +405,8 @@ function calc() {
 
   tbody.innerHTML = rows +
     '<tr class="sum"><td>合计</td><td></td><td></td><td></td>' +
-    '<td class="r">' + spanDays + '</td><td class="r">—</td>' +
-    '<td class="r">' + fmt(interest) + '</td></tr>';
+    '<td class="r seg-d">' + spanDays + '</td><td class="r seg-bal">—</td>' +
+    '<td class="r seg-int">' + fmt(interest) + '</td></tr>';
 }
 
 // 事件
