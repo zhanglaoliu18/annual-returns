@@ -204,9 +204,12 @@ function main(base, yearDocs, years, gfl) {
   const cal = base.ths_2026_calibration;
 
   /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
+  /* yearDocs 只含 daily_since 之后的年份，需按 fetchYears 对齐，不能按 years 下标取 */
+  const since = base.daily_since || '2026';
+  const fetchYears = years.filter(y => y >= since);
   const pnlByYear = {};
-  years.forEach((y, i) => {
-    const doc = yearDocs[i];
+  years.forEach(y => {
+    const doc = yearDocs[fetchYears.indexOf(y)];
     if (!doc) return;
     const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
     pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
@@ -215,7 +218,7 @@ function main(base, yearDocs, years, gfl) {
   const ths = {...base.accounts.ths};
   ths['2026'] = cal.base + (pnlByYear['2026'] || 0);
 
-  const gross = {}, thsCol = {}, aliCol = base.accounts.alipay, cmbCol = base.accounts.cmb;
+  const gross = {}, aliCol = base.accounts.alipay, cmbCol = base.accounts.cmb;
   for (const y of years) gross[y] = aliCol[y] + cmbCol[y] + (ths[y] || 0);
 
   const today = d2s(new Date());
