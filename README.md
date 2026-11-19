@@ -4,7 +4,7 @@
 
 - **数据层**：`data/` 下的 JSON，git 留痕；按用途分 4 个子目录（持仓 / 每日归档 / 成本基准 / 借款）
 - **展示层**：三个静态页（GitHub Pages 托管），打开时读 JSON 现算现渲染
-- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**打开首页时静默自检**——工作日 15:05 后若当日数据未写入，页面后台自动 dispatch（workflow_dispatch）触发一次，10 分钟内不重复；无需手动操作
+- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**打开首页时静默自检**——五个条件同时满足才触发（① 工作日 ② 北京时间 ≥15:05 ③ 当日数据未写入 ④ 距上次触发 ≥10 分钟 ⑤ GitHub 上没有排队中/运行中的任务，第 ⑤ 条通过匿名读取 Actions API 判断），满足则后台静默 dispatch（workflow_dispatch）；无需手动操作
 
 ## 页面
 

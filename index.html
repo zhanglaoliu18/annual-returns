@@ -155,25 +155,45 @@ const GH_API = 'https://api.github.com/repos/zhanglaoliu18/annual-returns';
 const GH_TOKEN = 'github_pat_' + '11AIBA6KA0nUJtt6xjukQ9_FeJwlF' + '3Huq8zM1hnyEDvxNsibmA2q8WC8JwDq1qgnK1H53FYFRQPL1eemSg';   // fine-grained token，仅 Actions 触发权限，可公开
 const AUTO_UPD_KEY = 'auto_upd_last';
 
+/* 第 5 个条件：GitHub 上是否已有排队中/运行中的任务（公开仓库的 Actions API 可匿名跨域读取） */
+async function hasRunningRun() {
+  try {
+    const r = await fetch(GH_API + '/actions/workflows/daily.yml/runs?per_page=1', {
+      headers: { 'Accept': 'application/vnd.github+json' },
+      cache: 'no-store'
+    });
+    if (!r.ok) return false;                             // 限流/异常时按「没有」处理，退回原 4 条件逻辑
+    const j = await r.json();
+    const w = (j.workflow_runs || [])[0];
+    return !!(w && (w.status === 'queued' || w.status === 'in_progress'));
+  } catch (e) {
+    return false;
+  }
+}
+
 function autoUpdateMaybe(payload) {
   try {
     const bjDate = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
     const dow = new Date(bjDate + 'T12:00:00+08:00').getDay();
-    if (dow < 1 || dow > 5) return;                      // 周末：job 本就跳过，不触发
+    if (dow < 1 || dow > 5) return;                      // ① 周末：job 本就跳过，不触发
     const bjHHmm = new Date().toLocaleTimeString('sv-SE', {timeZone: 'Asia/Shanghai', hour12: false}).slice(0, 5);
-    if (bjHHmm < '15:05') return;                        // 盘中：收盘价未定，job 也不会写入
+    if (bjHHmm < '15:05') return;                        // ② 盘中：收盘价未定，job 也不会写入
     const doc = payload && payload.yearDocs && payload.yearDocs[payload.yearDocs.length - 1];
     const days = (doc && doc.days) || [];
     const lastDay = days.length ? days[days.length - 1].date : '';
-    if (lastDay >= bjDate) return;                       // 已是最新，无需触发
+    if (lastDay >= bjDate) return;                       // ③ 已是最新，无需触发
     const last = Number(localStorage.getItem(AUTO_UPD_KEY) || 0);
-    if (Date.now() - last < 10 * 60 * 1000) return;      // 10 分钟内已触发过，防重复
-    localStorage.setItem(AUTO_UPD_KEY, String(Date.now()));
-    fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: 'main' })
-    }).catch(() => {});                                  // 静默：失败不打扰用户，10 分钟后下次进页再试
+    if (Date.now() - last < 10 * 60 * 1000) return;      // ④ 10 分钟内已触发过，防重复
+    hasRunningRun().then(running => {                    // ⑤ 已有任务在排队/运行中 → 交给它，不叠加
+      if (running) return;
+      if (Date.now() - Number(localStorage.getItem(AUTO_UPD_KEY) || 0) < 10 * 60 * 1000) return;   // 异步回来后再复检，防多标签页竞态
+      localStorage.setItem(AUTO_UPD_KEY, String(Date.now()));
+      fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: 'main' })
+      }).catch(() => {});                                // 静默：失败不打扰用户，10 分钟后下次进页再试
+    });
   } catch (e) {}
 }
 
