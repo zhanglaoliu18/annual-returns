@@ -97,16 +97,13 @@ td.shot{vertical-align:middle}
 .totalbar .tv{font-size:30px;font-weight:700;color:var(--brand);
   letter-spacing:-.6px;font-variant-numeric:tabular-nums;margin-left:auto;line-height:1.1}
 
-/* segments */
-.segs td,.segs th{padding:8px;font-size:13px;border-bottom:1px solid #f0f3f7;white-space:nowrap}
-.segs th{font-size:11.5px;color:var(--ink3);font-weight:500;border-bottom:1px solid var(--line)}
-.segs td.r,.segs th.r{text-align:right}
-.segs tbody tr:last-child td{border-bottom:none}
-.segs tr.sum td{border-top:1px solid var(--line);border-bottom:none;font-weight:600;
+/* 合计行 */
+#flows tr.sum td{border-top:1px solid var(--line);border-bottom:none;font-weight:600;
   background:#fafbfd;padding-top:11px}
-.segs tr.sum td:first-child{color:var(--ink2);font-weight:500;font-size:12px}
+#flows tr.sum td:first-child{color:var(--ink2);font-weight:500;font-size:12px}
 
 /* notes */
+.sub-h{font-size:12.5px;color:var(--ink2);font-weight:600;letter-spacing:.3px;margin-top:20px}
 details{margin-top:4px}
 summary{cursor:pointer;font-size:13px;color:var(--brand2);padding:4px 0;list-style:none}
 summary::-webkit-details-marker{display:none}
@@ -138,7 +135,7 @@ details[open] summary::before{content:"− "}
   #flows thead{display:none}
   #flows tbody{display:block}
   #flows tr{display:grid;grid-template-columns:1fr 1.1fr 28px;
-    grid-template-areas:"date date del" "amt note note" "shot shot shot";
+    grid-template-areas:"date date del" "amt note note" "shot shot shot" "seg seg seg";
     gap:7px;padding:11px;border:1px solid var(--line);border-radius:10px;
     background:#fbfcfd;margin-bottom:9px}
   #flows tbody tr:last-child{margin-bottom:0}
@@ -149,6 +146,14 @@ details[open] summary::before{content:"− "}
   #flows td:nth-child(3){grid-area:note}
   #flows td:nth-child(4){grid-area:shot}
   #flows td:nth-child(5){grid-area:del;display:flex;align-items:center;justify-content:flex-end}
+  #flows td:nth-child(6),#flows td:nth-child(7),#flows td:nth-child(8){grid-area:seg;
+    display:flex;justify-content:space-between;padding:0 2px}
+  #flows td:nth-child(6)::before{content:"计息天数";}
+  #flows td:nth-child(7)::before{content:"期间余额 ";}
+  #flows td:nth-child(8)::before{content:"该段利息 ";}
+  #flows td:nth-child(6)::before,#flows td:nth-child(7)::before,#flows td:nth-child(8)::before{
+    color:var(--ink3);font-size:11.5px}
+  #flows tr.sum td:nth-child(6),#flows tr.sum td:nth-child(7),#flows tr.sum td:nth-child(8){display:none}
   #flows .thumb{width:158px;height:46px}
   #flows td input{background:#fff;border:1px solid var(--line);padding:9px 11px;font-size:14px}
   #flows td input:hover{background:#fff}
@@ -201,17 +206,21 @@ details[open] summary::before{content:"− "}
 <!-- 流水 -->
 <div class="card">
   <div class="card-h">
-    <h2>资金流水</h2>
+    <h2>资金流水与分段计息</h2>
+    <span class="hint">每笔资金按实际持有天数单独计息</span>
   </div>
   <div class="card-b">
     <div class="tblwrap">
       <table id="flows">
         <thead>
           <tr>
-            <th style="width:212px">时间</th>
-            <th style="width:160px">金额（元）</th>
+            <th style="width:180px">时间</th>
+            <th style="width:130px">金额（元）</th>
             <th>备注</th>
-            <th style="width:104px">凭据</th>
+            <th style="width:92px">凭据</th>
+            <th class="r" style="width:60px">天数</th>
+            <th class="r" style="width:120px">期间余额</th>
+            <th class="r" style="width:110px">该段利息</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -242,21 +251,6 @@ details[open] summary::before{content:"− "}
       </div>
       <div class="tv" id="kTotal">—</div>
     </div>
-
-    <details open style="margin-top:20px">
-      <summary>分段计息明细</summary>
-      <div class="tblwrap" style="margin-top:8px">
-        <table class="segs">
-          <thead>
-            <tr>
-              <th>起</th><th>止</th><th class="r">天数</th>
-              <th class="r">期间余额</th><th class="r">该段利息</th>
-            </tr>
-          </thead>
-          <tbody id="segs"></tbody>
-        </table>
-      </div>
-    </details>
 
     <details>
       <summary>计算口径说明</summary>
@@ -315,22 +309,6 @@ async function ensureShots() {
 
 function renderRows(flows) {
   FLOWS = flows || [];
-  const p = n => String(n).padStart(2, '0');
-  tbody.innerHTML = FLOWS.slice().sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1).map(f => {
-    const k = f.shot || '';
-    const a = f.amount || 0;
-    const amt = (a >= 0 ? '+' : '-') + Math.abs(a).toLocaleString('zh-CN');
-    const dt = (f.date || '').replace('T', ' ').slice(0, 16);
-    const cls = a >= 0 ? 'in' : 'out';
-    return '<tr>' +
-      '<td>' + dt + '</td>' +
-      '<td class="num ' + cls + '">' + amt + '</td>' +
-      '<td>' + (f.note || '') + '</td>' +
-      '<td class="shot">' + (k && BASE && BASE.shots_t && BASE.shots_t[k]
-        ? '<img class="thumb" src="' + BASE.shots_t[k] + '" data-key="' + k + '" alt="转账凭据" title="点击看大图">'
-        : '<span class="noimg">—</span>') + '</td>' +
-      '</tr>';
-  }).join('');
   calc();
 }
 
@@ -357,31 +335,38 @@ function calc() {
   const endStr = $('#end').value;
 
   let warn = '';
-  const evs = FLOWS.filter(f => f.date && !isNaN(f.amount))
-    .map(f => ({ d: D(f.date), a: f.amount }))
-    .sort((x, y) => x.d - y.d);
+  const sorted = FLOWS.slice().sort((a, b) => (a.date || '') < (b.date || '') ? -1 : 1);
+  const evs = [];
+  sorted.forEach((f, i) => { if (f.date && !isNaN(f.amount)) evs.push({ d: D(f.date), a: f.amount, i }); });
 
-  let bal = 0, daysum = 0, prev = null, inSum = 0, outSum = 0, nIn = 0, nOut = 0;
+  let bal = 0, daysum = 0, prevIdx = -1, prevD = null, inSum = 0, outSum = 0, nIn = 0, nOut = 0;
   const segs = [];
+  const segByRow = {};   // sorted 行索引 → 该行之后一段的计息
 
   evs.forEach(e => {
-    if (prev !== null) {
-      const n = Math.round((e.d - prev) / 86400000);
-      if (n > 0 && bal !== 0) { daysum += bal * n; segs.push({ f: prev, t: e.d, n, bal, acc: bal * n }); }
-    } else {
-      prev = e.d;
+    if (prevIdx >= 0) {
+      const n = Math.round((e.d - prevD) / 86400000);
+      if (n > 0 && bal !== 0) {
+        daysum += bal * n;
+        const seg = { t: e.d, n, bal, acc: bal * n };
+        segs.push(seg); segByRow[prevIdx] = seg;
+      }
     }
     bal += e.a;
     if (bal < 0) warn = '有取出金额超过当时在账本金，请检查流水是否正确。';
     if (e.a >= 0) { inSum += e.a; nIn++; } else { outSum += -e.a; nOut++; }
-    prev = e.d;
+    prevIdx = e.i; prevD = e.d;
   });
 
-  if (prev && endStr) {
+  if (prevIdx >= 0 && endStr) {
     const end = D(endStr);
-    const n = Math.round((end - prev) / 86400000);
+    const n = Math.round((end - prevD) / 86400000);
     if (n < 0) warn = '结算日早于最后一笔流水日期，请检查日期。';
-    if (n > 0 && bal !== 0) { daysum += bal * n; segs.push({ f: prev, t: end, n, bal, acc: bal * n }); }
+    if (n > 0 && bal !== 0) {
+      daysum += bal * n;
+      const seg = { t: end, n, bal, acc: bal * n };
+      segs.push(seg); segByRow[prevIdx] = seg;
+    }
   }
 
   $('#warn').textContent = warn;
@@ -403,15 +388,31 @@ function calc() {
   $('#kTotalN').textContent = '本金 ' + fmt(bal) + ' + 利息 ' + fmt(interest);
   $('#asof').textContent = endStr ? '截至 ' + endStr : '';
 
-  const rows = segs.map(s =>
-    '<tr><td>' + s.f.toISOString().slice(0,10) + '</td>' +
-    '<td>' + s.t.toISOString().slice(0,10) + '</td>' +
-    '<td class="r">' + s.n + '</td>' +
-    '<td class="r">' + fmt(s.bal) + '</td>' +
-    '<td class="r">' + fmt(s.acc * rate / 100 / basis) + '</td></tr>'
-  ).join('');
-  $('#segs').innerHTML = rows +
-    '<tr class="sum"><td>合计</td><td></td>' +
+  /* 合并表：每行 = 一笔流水 + 该笔之后的计息段 */
+  const intOf = s => fmt(s.acc * rate / 100 / basis);
+  const dash = '<td class="r" style="color:#c6cdd7">—</td>';
+  const rows = sorted.map((f, i) => {
+    const k = f.shot || '';
+    const a = f.amount || 0;
+    const amt = (a >= 0 ? '+' : '-') + Math.abs(a).toLocaleString('zh-CN');
+    const dt = (f.date || '').replace('T', ' ').slice(0, 16);
+    const cls = a >= 0 ? 'in' : 'out';
+    const s = segByRow[i];
+    const seg = s
+      ? '<td class="r">' + s.n + '</td><td class="r">' + fmt(s.bal) + '</td><td class="r">' + intOf(s) + '</td>'
+      : dash + dash + dash;
+    return '<tr>' +
+      '<td>' + dt + '</td>' +
+      '<td class="num ' + cls + '">' + amt + '</td>' +
+      '<td>' + (f.note || '') + '</td>' +
+      '<td class="shot">' + (k && BASE && BASE.shots_t && BASE.shots_t[k]
+        ? '<img class="thumb" src="' + BASE.shots_t[k] + '" data-key="' + k + '" alt="转账凭据" title="点击看大图">'
+        : '<span class="noimg">—</span>') + '</td>' +
+      seg + '</tr>';
+  }).join('');
+
+  tbody.innerHTML = rows +
+    '<tr class="sum"><td>合计</td><td></td><td></td><td></td>' +
     '<td class="r">' + spanDays + '</td><td class="r">—</td>' +
     '<td class="r">' + fmt(interest) + '</td></tr>';
 }
