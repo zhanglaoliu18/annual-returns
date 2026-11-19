@@ -159,22 +159,32 @@ def main() -> int:
     # 取各标的并集的最近 backfill 个交易日（收盘后）
     dates = sorted({k["date"] for kl in klines.values() for k in kl})
     todo = [d for d in dates if d <= t.strftime("%Y-%m-%d")][-backfill:]
+
+    # 盘中保护：当天未收盘（<15:05）时实时价不是收盘价，禁止写入当日、不采溢价
+    intraday = t.strftime("%H:%M") < "15:05"
+    if intraday:
+        today = t.strftime("%Y-%m-%d")
+        todo = [d for d in todo if d < today]
+
     last_market_day = todo[-1] if todo else None
 
     # 最新交易日当天的溢价率/IOPV（历史日补算时无从获取，故只挂最新一天）
     quotes = {}
-    try:
-        quotes = fetch_quotes([p["code"] for p in positions])
-        for code, q in quotes.items():
-            raw = q.get("pct_raw")
-            note = ""
-            if raw is not None and abs(raw - q["pct"]) > 1:
-                note = f"  ⚠️ 与接口字段[77]={raw:+.2f}% 偏差较大，以自算为准"
-            print(f"quote {code}: price={q['price']} iopv={q.get('iopv', 0)} "
-                  f"prem={q.get('pct', 0):+.2f}%{note}")
-    except Exception as e:      # 接口抽风不阻断写盘
-        print("quote fetch failed:", e)
-        quotes = {}
+    if not intraday:
+        try:
+            quotes = fetch_quotes([p["code"] for p in positions])
+            for code, q in quotes.items():
+                raw = q.get("pct_raw")
+                note = ""
+                if raw is not None and abs(raw - q["pct"]) > 1:
+                    note = f"  ⚠️ 与接口字段[77]={raw:+.2f}% 偏差较大，以自算为准"
+                print(f"quote {code}: price={q['price']} iopv={q.get('iopv', 0)} "
+                      f"prem={q.get('pct', 0):+.2f}%{note}")
+        except Exception as e:      # 接口抽风不阻断写盘
+            print("quote fetch failed:", e)
+            quotes = {}
+    else:
+        print("盘中运行：跳过当日与溢价采集，仅补历史缺口")
 
     changed = []
     for d in todo:

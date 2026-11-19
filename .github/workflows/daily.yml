@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: 追加当日 ETF 盈亏（幂等，节假日自动跳过）
+        if: github.event_name != 'push'   # push 只负责部署；盘中推送严禁把实时价当收盘价写入
         run: python3 job/daily_update.py
         env:
           TZ: Asia/Shanghai
