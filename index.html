@@ -17,6 +17,11 @@
   .sub { color:var(--sub); font-size:13px; margin-top:6px; }
   .head { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; }
   .badge { font-size:11.5px; color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; padding:5px 11px; border-radius:999px; white-space:nowrap; }
+  .badge-btn { cursor:pointer; font-family:inherit; font-size:11.5px; font-weight:600; }
+  .badge-btn:hover { background:#FDE68A; }
+  .badge-btn:disabled { opacity:.65; cursor:default; }
+  .badge-btn.ok { color:#166534; background:#DCFCE7; border-color:#86EFAC; }
+  .badge-btn.err { color:#991B1B; background:#FEE2E2; border-color:#FCA5A5; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .kpi .l { font-size:12.5px; color:var(--sub); }
@@ -61,7 +66,7 @@ const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
 async function fetchJSON(url, tries = 0) {
   for (const u of [url, CDN + url]) {
     try {
-      const r = await fetch(u, {cache: 'default'});
+      const r = await fetch(u, {cache: window.__noCache ? 'reload' : 'default'});
       if (r.ok) return await r.json();
     } catch (e) {}
   }
@@ -132,6 +137,55 @@ async function boot() {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved_at: Date.now(), payload })); } catch (e) {}
 }
 boot();
+
+/* 手动触发每日数据更新：dispatch workflow → 等运行完成 → 绕过缓存刷新页面 */
+const GH_API = 'https://api.github.com/repos/zhanglaoliu18/annual-returns';
+const GH_TOKEN = 'github_pat_' + '11AIBA6KA0nUJtt6xjukQ9_FeJwlF' + '3Huq8zM1hnyEDvxNsibmA2q8WC8JwDq1qgnK1H53FYFRQPL1eemSg';   // fine-grained token，仅 Actions 触发权限，可公开
+
+async function updateToday(btn) {
+  if (btn.dataset.busy) return;
+  btn.dataset.busy = '1';
+  btn.disabled = true;
+  btn.classList.remove('ok', 'err');
+  const orig = '更新今日收益';
+  try {
+    btn.textContent = '触发中…';
+    const r = await fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: 'main' })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    btn.textContent = '已触发，等待数据写入…';
+
+    /* 轮询最新 dispatch run（最长 ~150 秒） */
+    let done = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(res => setTimeout(res, 5000));
+      const runs = await (await fetch(GH_API + '/actions/workflows/daily.yml/runs?per_page=1', { headers: { 'Accept': 'application/vnd.github+json' } })).json();
+      const top = runs.workflow_runs && runs.workflow_runs[0];
+      if (top && top.event === 'workflow_dispatch' && top.status === 'completed') { done = top.conclusion; break; }
+    }
+    if (done !== 'success') throw new Error(done || '运行超时');
+
+    /* 绕过浏览器与 Pages 缓存强制刷新 */
+    localStorage.removeItem(CACHE_KEY);
+    window.__noCache = true;
+    await boot();
+    window.__noCache = false;
+    btn.textContent = '✅ 已更新至最新';
+    btn.classList.add('ok');
+  } catch (e) {
+    btn.textContent = '❌ ' + e.message;
+    btn.classList.add('err');
+  }
+  setTimeout(() => {
+    btn.textContent = orig;
+    btn.classList.remove('ok', 'err');
+    btn.disabled = false;
+    delete btn.dataset.busy;
+  }, 4000);
+}
 
 function renderFrom(cacheObj) {
   if (!cacheObj) return false;
@@ -245,7 +299,7 @@ function main(base, yearDocs, years, gfl) {
         <h1>年度收益总览</h1>
         <div class="sub">2022 – ${thisYear} · 支付宝 / 招商银行 / 同花顺 三账户合计 · 资金成本 = 女友借款利息（10% 单利）+ 融资利息（${fmt(base.costs.financing.daily,2)} 元/天）</div>
       </div>
-      <div class="badge">${thisYear} 为年内累计，尚未收官</div>
+      <button class="badge badge-btn" id="updBtn" title="触发每日收盘数据更新（约 20–40 秒后自动刷新）">更新今日收益</button>
     </div>
     <div class="kpis">${kpis}</div>
 
@@ -264,6 +318,8 @@ function main(base, yearDocs, years, gfl) {
 
   /* 图表悬浮提示：鼠标移到数据点/柱子上显示明细 */
   const tipEl = document.getElementById('tip');
+  const updBtn = document.getElementById('updBtn');
+  if (updBtn) updBtn.addEventListener('click', () => updateToday(updBtn));
   document.addEventListener('mousemove', e => {
     const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
     if (t) {

@@ -1,11 +1,9 @@
 name: daily-update-and-pages
 
 on:
-  schedule:
-    - cron: '10 7 * * *'   # UTC 07:10 = 北京时间 15:10（A股收盘后）
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # 每日数据更新改由页面按钮手动触发（首页「更新今日收益」）
 
 permissions:
   contents: write   # daily_update.py 需要 commit+push
