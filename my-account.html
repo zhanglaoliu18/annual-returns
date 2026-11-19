@@ -18,6 +18,7 @@
   .sub { color:var(--sub); font-size:13px; margin-top:6px; }
   .head { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; flex-wrap:wrap; }
   .badge { font-size:11.5px; color:#92400E; background:#FEF3C7; border:1px solid #FDE68A; padding:5px 11px; border-radius:999px; white-space:nowrap; }
+  .stale { display:inline-block; font-size:10.5px; color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5; padding:1.5px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .kpi .l { font-size:12.5px; color:var(--sub); }
@@ -192,8 +193,11 @@ function render(D) {
 
   /* --- 顶部三卡 --- */
   const stale = last.date !== TODAY ? ' · 数据 ' + last.date.slice(5) : '';
+  /* 工作日但当日数据未写入时，当日盈亏卡显示红色「今日尚未更新」（周末 job 跳过属正常，不误报） */
+  const dow = new Date(TODAY + 'T12:00:00+08:00').getDay();
+  const staleTag = (last.date < TODAY && dow >= 1 && dow <= 5) ? '<span class="stale">今日尚未更新</span>' : '';
   document.getElementById('top').innerHTML = [
-    { l: '当日盈亏', v: signed(dayPnl), c: up(dayPnl), n: '总市值 ' + fmt(mvTot) + ' · 当日 ' + pct(dayPct) },
+    { l: '当日盈亏' + staleTag, v: signed(dayPnl), c: up(dayPnl), n: '总市值 ' + fmt(mvTot) + ' · 当日 ' + pct(dayPct) },
     { l: '本人净资产', v: fmt(ownNet), c: ownNet >= 0 ? 'var(--ink)' : RED, n: '总市值 − 融资负债 − 女友负债' }
   ].map(c => `<div class="kpi"><div class="l">${c.l}</div><div class="v" style="color:${c.c}">${c.v}</div><div class="n">${c.n}${stale}</div></div>`).join('');
 
