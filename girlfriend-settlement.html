@@ -136,7 +136,7 @@ details[open] summary::before{content:"− "}
   #flows thead{display:none}
   #flows tbody{display:block}
   #flows tr{display:grid;grid-template-columns:1fr 1.1fr 28px;
-    grid-template-areas:"date date del" "amt note note" "shot shot shot" "seg seg seg";
+    grid-template-areas:"date date del" "amt note note" "shot shot shot" "seg1 seg1 seg1" "seg2 seg2 seg2" "seg3 seg3 seg3";
     gap:7px;padding:11px;border:1px solid var(--line);border-radius:10px;
     background:#fbfcfd;margin-bottom:9px}
   #flows tbody tr:last-child{margin-bottom:0}
@@ -147,8 +147,9 @@ details[open] summary::before{content:"− "}
   #flows td:nth-child(3){grid-area:note}
   #flows td:nth-child(4){grid-area:shot}
   #flows td:nth-child(5){grid-area:del;display:flex;align-items:center;justify-content:flex-end}
-  #flows td:nth-child(6),#flows td:nth-child(7),#flows td:nth-child(8){grid-area:seg;
-    display:flex;justify-content:space-between;padding:0 2px}
+  #flows td:nth-child(6){grid-area:seg1;display:flex;justify-content:space-between;padding:0 2px}
+  #flows td:nth-child(7){grid-area:seg2;display:flex;justify-content:space-between;padding:0 2px}
+  #flows td:nth-child(8){grid-area:seg3;display:flex;justify-content:space-between;padding:0 2px}
   #flows td:nth-child(6)::before{content:"计息天数";}
   #flows td:nth-child(7)::before{content:"期间余额 ";}
   #flows td:nth-child(8)::before{content:"该段利息 ";}
