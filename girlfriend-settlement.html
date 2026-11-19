@@ -289,7 +289,7 @@ const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
 async function fetchJSON(url) {
   const candidates = url.includes('shots.json') ? [CDN + url, url] : [url, CDN + url];
   for (const u of candidates) {
-    try { const r = await fetch(u, {cache: 'default'}); if (r.ok) return await r.json(); } catch (e) {}
+    try { const r = await fetch(u, {cache: 'no-cache'}); if (r.ok) return await r.json(); } catch (e) {}
   }
   return null;
 }

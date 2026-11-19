@@ -120,7 +120,7 @@ const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
 async function fetchJSON(url, tries = 0) {
   for (const u of [url, CDN + url]) {
     try {
-      const r = await fetch(u, {cache: 'default'});
+      const r = await fetch(u, {cache: 'no-cache'});
       if (r.ok) return await r.json();
     } catch (e) {}
   }
