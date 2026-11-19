@@ -136,11 +136,18 @@ async function boot() {
   try { cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch (e) {}
   if (cached && cached.payload) renderFrom(cached.payload);   // 缓存秒开
 
-  const [base, gfl] = await Promise.all([fetchJSON('data/costs/baseline.json'), fetchJSON('data/loan/gf_loan.json')]);
+  /* 用缓存里的 daily_since 猜年份范围，让年份 JSON 与 base/gfl 同时并行请求（原先串一级，开页多等一个往返） */
+  const sinceGuess = (cached && cached.payload && cached.payload.base && cached.payload.base.daily_since) || '2026';
+  const yearsP = Promise.all(allYears.filter(y => y >= sinceGuess).map(y => fetchJSON(`data/daily/${y}.json`)));
+  const [base, gfl, yearDocs0] = await Promise.all([fetchJSON('data/costs/baseline.json'), fetchJSON('data/loan/gf_loan.json'), yearsP]);
   if (!base) { if (!cached) document.getElementById('app').innerHTML = '<div class="loading">数据加载失败，请检查网络后刷新</div>'; return; }
 
-  const fresh = await loadData(base);
-  const payload = { base: fresh.base, gfl: gfl || null, yearDocs: fresh.yearDocs, years: fresh.years };
+  /* daily_since 配置与缓存猜测不一致时（极少发生），回退到精确的串行加载 */
+  let yearDocs = yearDocs0;
+  const since = base.daily_since || '2026';
+  if (since !== sinceGuess) ({ yearDocs } = await loadData(base));
+
+  const payload = { base, gfl: gfl || null, yearDocs, years: allYears };
   if (!cached || cacheDiffers(payload, cached.payload)) renderFrom(payload);   // 数据有变化才重绘
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ saved_at: Date.now(), payload })); } catch (e) {}
   return payload;

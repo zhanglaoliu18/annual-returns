@@ -257,22 +257,38 @@ function render(D) {
   }).join('');
 }
 
-/* --- 载入三份数据后渲染 --- */
+/* --- 秒开：先画 localStorage 缓存，后台拉最新数据有变化再重绘 --- */
+const MA_CACHE = 'ma_cache_v1';
+function readCache() {
+  try { return JSON.parse(localStorage.getItem(MA_CACHE)); } catch (e) { return null; }
+}
+function renderIfChanged(D, cached) {
+  const sig = JSON.stringify(D);
+  if (cached && JSON.stringify(cached) === sig) return;
+  render(D);
+  try { localStorage.setItem(MA_CACHE, sig); } catch (e) {}
+}
+
+/* --- 四份 JSON 一次并行拉齐（此前 daily 串在三个之后，多等一个往返导致开页卡顿） --- */
 (async () => {
   const yr = TODAY.slice(0, 4);
-  const [pos, base, gfl] = await Promise.all([
+  const cached = readCache();
+  if (cached) render(cached);                       // 秒开缓存帧
+  const [pos, base, gfl, day0] = await Promise.all([
     fetchJSON('data/portfolio/positions.json', 1), fetchJSON('data/costs/baseline.json', 1),
-    fetchJSON('data/loan/gf_loan.json', 1)
+    fetchJSON('data/loan/gf_loan.json', 1), fetchJSON('data/daily/' + yr + '.json', 1)
   ]);
-  let day = await fetchJSON('data/daily/' + yr + '.json', 1);
+  let day = day0;
   if (!day) day = await fetchJSON('data/daily/' + (Number(yr) - 1) + '.json', 1);
   if (!pos || !base || !gfl || !day || !day.days || !day.days.length) {
-    document.getElementById('sub').textContent = '数据加载失败，请刷新重试';
-    document.getElementById('top').innerHTML = '<div class="loading">数据加载失败</div>';
+    if (!cached) {                                  // 有缓存帧时静默保留旧数据
+      document.getElementById('sub').textContent = '数据加载失败，请刷新重试';
+      document.getElementById('top').innerHTML = '<div class="loading">数据加载失败</div>';
+    }
     return;
   }
   day.days.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-  render({ pos, day, base, gfl });
+  renderIfChanged({ pos, day, base, gfl }, cached);
 })();
 </script>
 </body>
