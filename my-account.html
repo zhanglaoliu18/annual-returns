@@ -95,17 +95,6 @@
     <div class="grid" id="finGrid"></div>
   </div>
 
-  <div class="card">
-    <div class="ct"><h2>再平衡监控 · 目标 <span id="tgtTxt"></span></h2><div class="d" id="rebMsg"></div></div>
-    <div class="tscroll">
-      <table>
-        <thead><tr><th>资产</th><th>当前</th><th>偏离</th><th>触发通道</th></tr></thead>
-        <tbody id="reb"></tbody>
-      </table>
-    </div>
-    <div class="foot" style="margin-top:10px" id="rebRule"></div>
-  </div>
-
   <div class="pos2" id="positions"></div>
 </div>
 
@@ -242,21 +231,6 @@ function render(D) {
     { l: '本周期累计利息', v: fmt(accrued), n: days + ' 天 · 含当日' },
     { l: y + ' 年利息合计', v: fmt(fixedY + (finByYear[y] || 0)), n: '已发生 ' + fmt(fixedY) + ' + 本周期' }
   ].map(c => `<div class="cell"><div class="l">${c.l}</div><div class="v">${c.v}</div><div class="n">${c.n}</div></div>`).join('');
-
-  /* --- 再平衡（目标权重与容差读自 data/portfolio/positions.json） --- */
-  const band = pos.rebalance_band || 5;
-  document.getElementById('tgtTxt').textContent = rows.map(r => r.target).join('/');
-  document.getElementById('rebRule').textContent =
-    '任一资产偏离目标 ±' + band + 'pp 触发 · 触线后整体回归目标 · 平衡时负债不动';
-  const outside = rows.some(r => Math.abs(r.weight - r.target) > band);
-  document.getElementById('rebMsg').textContent = outside ? '⚠️ 已偏离通道' : '通道内';
-  document.getElementById('reb').innerHTML = rows.map(r => {
-    const dev = r.weight - r.target;
-    return '<tr><td class="b">' + r.alias + '</td>' +
-      '<td>' + r.weight.toFixed(1) + '%</td>' +
-      '<td style="color:' + (Math.abs(dev) > band ? RED : 'var(--sub)') + '">' + (dev > 0 ? '+' : '') + dev.toFixed(1) + 'pp</td>' +
-      '<td>' + (r.target - band) + '–' + (r.target + band) + '%</td></tr>';
-  }).join('');
 
   /* --- 持仓卡片 --- */
   document.getElementById('positions').innerHTML = rows.map(r => {

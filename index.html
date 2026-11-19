@@ -107,12 +107,17 @@ function gfInterestByYear(flows, rate, basis, today) {
   return {byYear: res, total: total * rate / basis};
 }
 
-/* 融资利息：2025定值；2026 = 已发生定值 + daily × (今日-start+1) */
+/* 融资利息：fixed 为历史年份定值；start→today 按 12-31 切段分别归年（跨年正确归属） */
 function finInterestByYear(cfg, today) {
   const out = {...cfg.fixed};
-  const days = dayDiff(cfg.start, today) + 1;
-  out[cfg.start.slice(0,4)] = (cfg.fixed[cfg.start.slice(0,4)] || 0) + cfg.daily * days;
-  return {byYear: out, extraDays: days};
+  let a = cfg.start;
+  while (a && a <= today) {
+    const yy = a.slice(0, 4);
+    const e = (yy + '-12-31') < today ? (yy + '-12-31') : today;
+    out[yy] = (out[yy] || 0) + cfg.daily * (dayDiff(a, e) + 1);
+    a = e === today ? null : (Number(yy) + 1) + '-01-01';
+  }
+  return {byYear: out, extraDays: dayDiff(cfg.start, today) + 1};
 }
 
 /* 数据加载：localStorage 缓存优先（秒开），后台静默刷新 */
