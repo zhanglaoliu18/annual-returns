@@ -132,31 +132,13 @@ details[open] summary::before{content:"− "}
   .tfoot{flex-wrap:wrap}
   .tfoot .btn{flex:1;min-width:104px}
 
-  /* 流水表 → 卡片式 */
-  #flows thead{display:none}
-  #flows tbody{display:block}
-  #flows tr{display:grid;grid-template-columns:1fr 1.1fr;
-    grid-template-areas:"date date" "amt note" "shot shot" "seg1 seg1" "seg2 seg2" "seg3 seg3";
-    gap:7px;padding:11px;border:1px solid var(--line);border-radius:10px;
-    background:#fbfcfd;margin-bottom:9px}
-  #flows tbody tr:last-child{margin-bottom:0}
-  #flows tbody tr:hover{background:#fbfcfd}
-  #flows td{display:block;padding:0;border:none;width:auto}
-  #flows td:nth-child(1){grid-area:date}
-  #flows td:nth-child(2){grid-area:amt}
-  #flows td:nth-child(3){grid-area:note}
-  #flows td:nth-child(4){grid-area:shot}
-  #flows td.seg-d{grid-area:seg1;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td.seg-bal{grid-area:seg2;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td.seg-int{grid-area:seg3;display:flex;justify-content:space-between;padding:0 2px}
-  #flows td.seg-d::before{content:"计息天数";color:var(--ink3);font-size:11.5px}
-  #flows td.seg-bal::before{content:"期间余额";color:var(--ink3);font-size:11.5px}
-  #flows td.seg-int::before{content:"该段利息";color:var(--ink3);font-size:11.5px}
-  #flows .thumb{width:158px;height:46px}
-  #flows td input{background:#fff;border:1px solid var(--line);padding:9px 11px;font-size:14px}
-  #flows td input:hover{background:#fff}
-  #flows td input:focus{border-color:var(--brand2)}
-  #flows td input::placeholder{font-size:12.5px}
+  /* 流水表：小屏保持表格形态，容器左右滑动查看全部 7 列 */
+  .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tblwrap::-webkit-scrollbar{height:6px}
+  .tblwrap::-webkit-scrollbar-thumb{background:#cfd7e2;border-radius:3px}
+  #flows{min-width:640px}
+  #flows td:nth-child(3){min-width:110px}
+  #flows .thumb{width:96px;height:30px}
 }
 </style>
 </head>
