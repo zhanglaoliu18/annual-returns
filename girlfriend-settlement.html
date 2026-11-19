@@ -132,12 +132,11 @@ details[open] summary::before{content:"− "}
   .tfoot{flex-wrap:wrap}
   .tfoot .btn{flex:1;min-width:104px}
 
-  /* 流水表：小屏保持表格形态，容器左右滑动查看全部 7 列 */
+  /* 流水表：小屏保持表格形态，容器左右滑动查看全部 6 列 */
   .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .tblwrap::-webkit-scrollbar{height:6px}
   .tblwrap::-webkit-scrollbar-thumb{background:#cfd7e2;border-radius:3px}
-  #flows{min-width:640px}
-  #flows td:nth-child(3){min-width:110px}
+  #flows{min-width:600px}
   #flows .thumb{width:96px;height:30px}
 }
 </style>
@@ -236,7 +235,6 @@ details[open] summary::before{content:"− "}
           <tr>
             <th style="width:180px">时间</th>
             <th style="width:130px">金额（元）</th>
-            <th>备注</th>
             <th style="width:92px">凭据</th>
             <th class="r" style="width:60px">天数</th>
             <th class="r" style="width:120px">期间余额</th>
@@ -328,6 +326,9 @@ function calc() {
         daysum += bal * n;
         const seg = { t: e.d, n, bal, acc: bal * n };
         segs.push(seg); segByRow[prevIdx] = seg;
+      } else if (n === 0) {
+        /* 同一天多笔：上一笔当天不单独起息（与后一笔合并计息），仍给出该笔之后的余额与 ¥0 利息，避免出现空格 */
+        segByRow[prevIdx] = { t: e.d, n: 0, bal, acc: 0 };
       }
     }
     bal += e.a;
@@ -381,7 +382,6 @@ function calc() {
     return '<tr>' +
       '<td>' + dt + '</td>' +
       '<td class="num ' + cls + '">' + amt + '</td>' +
-      '<td>' + (f.note || '') + '</td>' +
       '<td class="shot">' + (k && BASE && BASE.shots_t && BASE.shots_t[k]
         ? '<img class="thumb" src="' + BASE.shots_t[k] + '" data-key="' + k + '" alt="转账凭据" title="点击看大图">'
         : '<span class="noimg">—</span>') + '</td>' +
@@ -389,7 +389,7 @@ function calc() {
   }).join('');
 
   tbody.innerHTML = rows +
-    '<tr class="sum"><td>合计</td><td></td><td></td><td></td>' +
+    '<tr class="sum"><td>合计</td><td></td><td></td>' +
     '<td class="r seg-d">' + segDays + '</td><td class="r seg-bal">—</td>' +
     '<td class="r seg-int">' + fmt(interest) + '</td></tr>';
 }
@@ -418,7 +418,7 @@ $('#basis').addEventListener('change', calc);
   } catch (e) {}
 
   if (BASE) { applyParams(true); renderRows(BASE.flows); }
-  else { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
+  else { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#909aa6;padding:20px">流水加载中…</td></tr>'; }
 
   /* 后台拉最新仓库数据；数据有变化才重渲染，且不覆盖用户已修改的参数 */
   const fresh = await loadBase();
