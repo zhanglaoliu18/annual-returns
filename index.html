@@ -22,6 +22,7 @@
   .badge-btn:disabled { opacity:.65; cursor:default; }
   .badge-btn.ok { color:#166534; background:#DCFCE7; border-color:#86EFAC; }
   .badge-btn.err { color:#991B1B; background:#FEE2E2; border-color:#FCA5A5; }
+  .stale { display:inline-block; font-size:10.5px; color:#B91C1C; background:#FEE2E2; border:1px solid #FCA5A5; padding:1.5px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
   .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:20px; }
   .kpi { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .kpi .l { font-size:12.5px; color:var(--sub); }
@@ -234,11 +235,19 @@ function main(base, yearDocs, years, gfl) {
   const thsTotal = years.reduce((s,y) => s + (ths[y]||0), 0);
   const finTotal = Object.values(fin.byYear).reduce((x,y) => x+y, 0);
 
+  /* 今日数据未更新标记：最新数据日 < 北京今天 且为工作日（周末/节假日 job 自动跳过，不提示） */
+  const bjToday = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+  const doc26 = yearDocs[yearDocs.length - 1] || {};   /* daily_since 之后才抓取，yearDocs 与 years 不一定等长，取最后一个即最新年 */
+  const days26 = doc26.days || [];
+  const lastDataDay = days26.length ? days26[days26.length - 1].date : '';
+  const dow = new Date().getDay();
+  const staleTag = (lastDataDay && lastDataDay < bjToday && dow >= 1 && dow <= 5) ? '<span class="stale">今日尚未更新</span>' : '';
+
   /* ---- 渲染 ---- */
   const app = document.getElementById('app');
 
   const kpis = `
-    <a class="kpi" href="my-account.html" title="打开我的账户（银河两融持仓）"><div class="go">我的账户 ↗</div><div class="l">总体净收益</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></a>
+    <a class="kpi" href="my-account.html" title="打开我的账户（银河两融持仓）"><div class="go">我的账户 ↗</div><div class="l">总体净收益${staleTag}</div><div class="v" style="color:${up(nTot)}">${signed(nTot,0)}</div><div class="n">已扣除资金成本（元）</div></a>
     <a class="kpi" href="girlfriend-settlement.html" title="打开女友投资结算页"><div class="go">结算页 ↗</div><div class="l">女友利息</div><div class="v" style="color:${GREEN}">${fmt(-gf.total,0)}</div><div class="n">10% 单利 · 截至 ${today}</div></a>
     <div class="kpi"><div class="l">融资利息</div><div class="v" style="color:${GREEN}">${fmt(-finTotal,0)}</div><div class="n">年利率 3.8% · 截至 ${today}</div></div>`;
 
