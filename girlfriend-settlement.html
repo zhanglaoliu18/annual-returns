@@ -195,33 +195,6 @@ details[open] summary::before{content:"− "}
   </div>
 </div>
 
-<!-- 流水 -->
-<div class="card">
-  <div class="card-h">
-    <h2>资金流水与分段计息</h2>
-    <span class="hint">每笔资金按实际持有天数单独计息</span>
-  </div>
-  <div class="card-b">
-    <div class="tblwrap">
-      <table id="flows">
-        <thead>
-          <tr>
-            <th style="width:180px">时间</th>
-            <th style="width:130px">金额（元）</th>
-            <th>备注</th>
-            <th style="width:92px">凭据</th>
-            <th class="r" style="width:60px">天数</th>
-            <th class="r" style="width:120px">期间余额</th>
-            <th class="r" style="width:110px">该段利息</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="warn" id="warn"></div>
-  </div>
-</div>
-
 <!-- 结果 -->
 <div class="card">
   <div class="card-h">
@@ -264,6 +237,34 @@ details[open] summary::before{content:"− "}
         </ul>
       </div>
     </details>
+  </div>
+</div>
+
+
+<!-- 流水 -->
+<div class="card">
+  <div class="card-h">
+    <h2>资金流水与分段计息</h2>
+    <span class="hint">每笔资金按实际持有天数单独计息</span>
+  </div>
+  <div class="card-b">
+    <div class="tblwrap">
+      <table id="flows">
+        <thead>
+          <tr>
+            <th style="width:180px">时间</th>
+            <th style="width:130px">金额（元）</th>
+            <th>备注</th>
+            <th style="width:92px">凭据</th>
+            <th class="r" style="width:60px">天数</th>
+            <th class="r" style="width:120px">期间余额</th>
+            <th class="r" style="width:110px">该段利息</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="warn" id="warn"></div>
   </div>
 </div>
 
