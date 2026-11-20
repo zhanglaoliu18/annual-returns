@@ -1,5 +1,5 @@
 {
-  "_comment": "大账户持仓（每日盈亏按此计算）。股票变动后修改 shares 并提交；每日记录会写入当日的 shares 快照，历史不受影响。cost=持仓成本净值（元/份，用于计算累计盈亏）；target=再平衡目标权重（%）；premium_pct/iopv 为手动兜底快照——每日任务会把当天溢价与 IOPV 写进 data/daily/<年>.json 的 premium/iopv，页面优先用那份。",
+  "_comment": "持仓快照：由 etf-report 云函数每日自动同步（单一事实源在私有仓）。请勿手改，改动会被覆盖。",
   "rebalance_band": 5,
   "positions": [
     {
