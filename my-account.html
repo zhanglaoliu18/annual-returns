@@ -252,68 +252,6 @@ function render(D) {
   }).join('');
 }
 
-/* --- 打开页面时静默自检：五个条件同时满足才后台触发更新任务（与首页共用节流 key，避免两页重复触发） --- */
-const GH_API = 'https://api.github.com/repos/zhanglaoliu18/annual-returns';
-const GH_TOKEN = 'github_pat_' + '11AIBA6KA0nUJtt6xjukQ9_FeJwlF' + '3Huq8zM1hnyEDvxNsibmA2q8WC8JwDq1qgnK1H53FYFRQPL1eemSg';   // fine-grained token，仅 Actions 触发权限，可公开
-const AUTO_UPD_KEY = 'auto_upd_last';        // 上次成功触发（dispatch 返回 2xx）的时间
-const AUTO_UPD_FAIL = 'auto_upd_fail';       // 上次触发失败的时间
-const COOLDOWN_OK = 90 * 1000;               // 成功触发后 90 秒内不重复（任务在跑由条件 ⑤ 兜住）
-const COOLDOWN_FAIL = 30 * 1000;             // 失败后 30 秒即可重试，避免一次失败锁死 10 分钟
-
-/* 第 5 个条件：GitHub 上是否已有排队中/运行中的任务（公开仓库的 Actions API 可匿名跨域读取） */
-async function hasRunningRun() {
-  try {
-    const r = await fetch(GH_API + '/actions/workflows/daily.yml/runs?per_page=1', {
-      headers: { 'Accept': 'application/vnd.github+json' },
-      cache: 'no-store'
-    });
-    if (!r.ok) return false;                             // 限流/异常时按「没有」处理，退回原 4 条件逻辑
-    const j = await r.json();
-    const w = (j.workflow_runs || [])[0];
-    return !!(w && (w.status === 'queued' || w.status === 'in_progress'));
-  } catch (e) {
-    return false;
-  }
-}
-
-function autoUpdateMaybe(day) {
-  try {
-    const force = new URLSearchParams(location.search).get('upd') === '1';   // ?upd=1 强制触发，跳过 ①~④，仍看 ⑤
-    if (!force) {
-      const bjDate = new Date().toLocaleDateString('sv-SE', {timeZone: 'Asia/Shanghai'});
-      const dow = new Date(bjDate + 'T12:00:00+08:00').getDay();
-      if (dow < 1 || dow > 5) return;                    // ① 周末：job 本就跳过，不触发
-      const bjHHmm = new Date().toLocaleTimeString('sv-SE', {timeZone: 'Asia/Shanghai', hour12: false}).slice(0, 5);
-      if (bjHHmm < '15:05') return;                      // ② 盘中：收盘价未定，job 也不会写入
-      const days = (day && day.days) || [];
-      const lastDay = days.length ? days[days.length - 1].date : '';
-      if (lastDay >= bjDate) return;                     // ③ 已是最新，无需触发
-      const lastOk = Number(localStorage.getItem(AUTO_UPD_KEY) || 0);
-      const lastFail = Number(localStorage.getItem(AUTO_UPD_FAIL) || 0);
-      if (Date.now() - lastOk < COOLDOWN_OK || Date.now() - lastFail < COOLDOWN_FAIL) return;   // ④ 冷却中
-    }
-    hasRunningRun().then(running => {                    // ⑤ 已有任务在排队/运行中 → 交给它，不叠加
-      if (running) return;
-      if (!force) {                                      // 异步回来后再复检冷却，防多标签页竞态
-        const lastOk = Number(localStorage.getItem(AUTO_UPD_KEY) || 0);
-        const lastFail = Number(localStorage.getItem(AUTO_UPD_FAIL) || 0);
-        if (Date.now() - lastOk < COOLDOWN_OK || Date.now() - lastFail < COOLDOWN_FAIL) return;
-      }
-      fetch(GH_API + '/actions/workflows/daily.yml/dispatches', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + GH_TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref: 'main' })
-      }).then(r => {
-        if (r.ok) { localStorage.setItem(AUTO_UPD_KEY, String(Date.now())); localStorage.removeItem(AUTO_UPD_FAIL); }
-        else { localStorage.setItem(AUTO_UPD_FAIL, String(Date.now())); console.warn('[auto-update] dispatch HTTP ' + r.status); }
-      }).catch(e => {
-        localStorage.setItem(AUTO_UPD_FAIL, String(Date.now()));            // 失败只锁 30 秒，下次进页可再试
-        console.warn('[auto-update] dispatch failed', e);
-      });
-    });
-  } catch (e) { console.warn('[auto-update]', e); }
-}
-
 /* --- 秒开：先画 localStorage 缓存，后台拉最新数据有变化再重绘 --- */
 const MA_CACHE = 'ma_cache_v1';
 function readCache() {
@@ -346,7 +284,6 @@ function renderIfChanged(D, cached) {
   }
   day.days.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   renderIfChanged({ pos, day, base, gfl }, cached);
-  autoUpdateMaybe(day);                              // 当日数据未写入时，静默触发更新任务
 })();
 </script>
 </body>

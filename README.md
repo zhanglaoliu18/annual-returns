@@ -4,7 +4,7 @@
 
 - **数据层**：`data/` 下的 JSON，git 留痕；按用途分 4 个子目录（持仓 / 每日归档 / 成本基准 / 借款）
 - **展示层**：三个静态页（GitHub Pages 托管），打开时读 JSON 现算现渲染
-- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**打开首页或账户页时静默自检**——五个条件同时满足才触发（① 工作日 ② 北京时间 ≥15:05 ③ 当日数据未写入 ④ 不在冷却期：成功触发后 90 秒内、失败后 30 秒内不重复 ⑤ GitHub 上没有排队中/运行中的任务，第 ⑤ 条通过匿名读取 Actions API 判断），满足则后台静默 dispatch（workflow_dispatch）；两页共用同一冷却时间戳，不会重复触发。需要立即重跑时在 URL 加 `?upd=1` 强制触发一次（仍受条件 ⑤ 约束）；无需手动操作
+- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**腾讯云函数 `etf-report` 的日报任务顺带自检**——每个交易日 15:10 日报推送完成后，检查本仓库当日数据是否已写入（交易日、北京时间 ≥15:05、`data/daily/<year>.json` 最后日期 < 今天、GitHub 上无排队/运行中的同名任务），未写入则自动 dispatch（workflow_dispatch）补一次；页面为纯展示，不参与触发
 
 ## 页面
 
@@ -52,7 +52,7 @@ data/
 
 ## 部署
 
-GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 触发（首页/账户页打开时静默自检自动 dispatch，无按钮）跑 `job/daily_update.py`；`on: push` 触发 Pages 发布。免费版 Pages 需公开仓库。
+GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 触发（云函数 `etf-report` 日报跑完后自检数据是否缺失，缺失则自动 dispatch）跑 `job/daily_update.py`；`on: push` 触发 Pages 发布。免费版 Pages 需公开仓库。
 
 ## 本地跑
 
