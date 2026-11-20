@@ -252,12 +252,13 @@ details[open] summary::before{content:"− "}
 
 <div class="lightbox" id="lb"><img alt="转账凭据" id="lbimg"></div>
 
+<script src="common.js?v=1"></script>
 <script>
 // 数据源：流水/利率 data/loan/gf_loan.json（唯一数据源）· 缩略图 data/loan/thumbs.json · 原图 data/loan/shots.json
 const BASE_CACHE = 'gf_base_cache_v1';    // 仓库数据缓存（含缩略图），秒开用
 const $ = s => document.querySelector(s);
 const tbody = $('#flows tbody');
-const D = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
+const D = parseD;   /* 公共 parseD 的别名（本页历史用名） */
 const fmt = n => (n < 0 ? '-' : '') + '¥' + Math.abs(n).toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmt0 = n => Math.round(n).toLocaleString('zh-CN');
 
@@ -265,19 +266,10 @@ let BASE = null;      // 仓库 JSON（含缩略图与流水）
 let FLOWS = [];       // 当前展示的流水（数据数组，计算用）
 
 /* 数据文件源站优先（新鲜可靠），jsDelivr 备用；原图几乎不变，CDN 优先 */
-const CDN = 'https://cdn.jsdelivr.net/gh/zhanglaoliu18/annual-returns@main/';
-async function fetchJSON(url, tries = 0) {
-  const candidates = url.includes('shots.json') ? [CDN + url, url] : [url, CDN + url];
-  for (const u of candidates) {
-    try { const r = await fetch(u, {cache: 'no-cache'}); if (r.ok) return await r.json(); } catch (e) {}
-  }
-  if (tries > 0) { await new Promise(res => setTimeout(res, 600)); return fetchJSON(url, tries - 1); }
-  return null;
-}
-
 let SHOTS = null;  // 原图字典，点击看大图时才加载
+/* 原图几乎不变，走 CDN 优先（common.js fetchJSON 的 cdnFirst 选项） */
 async function ensureShots() {
-  if (!SHOTS) { const d = await fetchJSON('data/loan/shots.json'); SHOTS = d && d.shots ? d.shots : {}; }
+  if (!SHOTS) { const d = await fetchJSON('data/loan/shots.json', 0, {cdnFirst: true}); SHOTS = d && d.shots ? d.shots : {}; }
   return SHOTS;
 }
 

@@ -4,7 +4,9 @@
 
 - **数据层**：`data/` 下的 JSON，git 留痕；按用途分 4 个子目录（持仓 / 每日归档 / 成本基准 / 借款）
 - **展示层**：三个静态页（GitHub Pages 托管），打开时读 JSON 现算现渲染
-- **任务层**：`job/daily_update.py`，由 GitHub Actions 执行：拉收盘价 → 追加记录 → commit + push。触发方式：**腾讯云函数 `etf-report` 的日报任务顺带自检**——每个交易日 15:10 日报推送完成后，检查本仓库当日数据是否已写入（交易日、北京时间 ≥15:05、`data/daily/<year>.json` 最后日期 < 今天、GitHub 上无排队/运行中的同名任务），未写入则自动 dispatch（workflow_dispatch）补一次；页面为纯展示，不参与触发
+- **任务层**：两条链路写 `data/`，页面为纯展示、不参与触发：
+  - **主链路 · 云函数直写**：腾讯云函数 `etf-report` 每个交易日 15:10 跑完日报推送后，自检本仓库当日数据是否已写入（交易日、北京时间 ≥15:05、`data/daily/<year>.json` 最后日期 < 今天、GitHub 上无排队/运行中的同名任务），未写入则**自己拉不复权收盘价现算，经 GitHub Contents API 直接写仓库**——几秒内落库，push 自动触发 Pages 发布；回看最近 5 个交易日自动补漏
+  - **兜底链路 · workflow**：直写失败时云函数自动 dispatch `.github/workflows/daily.yml`（`workflow_dispatch`），由 Actions 跑 `job/daily_update.py`：拉收盘价 → 追加记录 → commit + push
 
 ## 页面
 
@@ -18,7 +20,7 @@
 
 ```
 data/
-├── portfolio/positions.json   持仓：代码 / 名称 / 股数 / 成本 / 目标权重 / 溢价快照
+├── portfolio/positions.json   持仓快照（云函数自动同步，勿手改）：代码 / 名称 / 股数 / 成本 / 目标权重 / 溢价快照
 ├── daily/<年>.json            每日记录：收盘价、份额快照、当日盈亏、溢价/IOPV、updated_at
 ├── costs/baseline.json        历史存量：各账户历年盈亏、同花顺校准点、融资本金与日息
 └── loan/
@@ -44,7 +46,7 @@ data/
 
 ## 日常操作
 
-- **持仓变动**：改 `data/portfolio/positions.json`（股数 / 成本），push 即生效
+- **持仓变动**：**单一事实源在私有仓 `etf-report` 的 `positions.json`**（与日报同款）——改那里的股数/成本并重新部署云函数，每个交易日 15:10 本文件的快照会被自动同步（shares / cost / target），**请勿手改本文件**；融资负债等敏感配置只存在于私有仓
 - **女友借款流水**：只改 `data/loan/gf_loan.json`，三个页面都读这一份
 - **同花顺校准点**：改 `data/costs/baseline.json` 的 `ths_2026_calibration`（新快照数字 + 日期）
 - **补算**：默认每次回看最近 5 个交易日（`backfill=5`），缺哪天补哪天，接口日K晚生成导致的漏记会在第二天自动补回；也可用 `--backfill N` 指定天数
@@ -52,7 +54,7 @@ data/
 
 ## 部署
 
-GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 触发（云函数 `etf-report` 日报跑完后自检数据是否缺失，缺失则自动 dispatch）跑 `job/daily_update.py`；`on: push` 触发 Pages 发布。免费版 Pages 需公开仓库。
+GitHub Actions（`.github/workflows/daily.yml`）：`on: workflow_dispatch` 触发——正常情况下用不到（主链路是云函数直写，见「任务层」），仅在直写失败时由云函数自动 dispatch 兜底；`on: push` 触发 Pages 发布（直写产生的 push 同样生效）。免费版 Pages 需公开仓库。
 
 ## 本地跑
 
