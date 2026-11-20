@@ -17,7 +17,8 @@ const d2s = d => d.toISOString().slice(0, 10);
    window.__noCache（调试开关）: 加时间戳参数并 reload，绕过一切缓存 */
 async function fetchJSON(url, tries = 0, opts = {}) {
   const nc = opts.noCache || window.__noCache;
-  const b = nc ? '?t=' + Date.now() : '';
+  const sep = url.includes('?') ? '&' : '?';
+  const b = nc ? sep + 't=' + Date.now() : '';
   const order = opts.cdnFirst ? [CDN + url + b, url + b] : [url + b, CDN + url + b];
   for (const u of order) {
     try {

@@ -202,7 +202,7 @@ details[open] summary::before{content:"− "}
       <summary>计算口径说明</summary>
       <div class="note">
         <ul>
-          <li><b>起止规则：</b>转入当日开始计息，取出当日停止计息。</li>
+          <li><b>起止规则：</b>转入当日开始计息，取出当日停止计息（结算日当天不计息）。</li>
           <li><b>为什么这样算：</b>等价于「每笔资金按各自实际持有的天数单独计单利」。若中途有取出却仍按 49.9 万全额计息，等于让已取走的钱继续生息，双方都会觉得不公。</li>
         </ul>
       </div>
@@ -311,9 +311,9 @@ function calc() {
   const segs = [];
   const segByRow = {};   // sorted 行索引 → 该行之后一段的计息
 
-  evs.forEach(e => {
+  evs.forEach((e, idx) => {
     if (prevIdx >= 0) {
-      const n = Math.round((e.d - prevD) / 86400000);
+      const n = dayDiff(d2s(prevD), d2s(e.d));
       if (n > 0 && bal > 0) {
         daysum += bal * n;
         const seg = { t: e.d, n, bal, acc: bal * n };
@@ -324,14 +324,18 @@ function calc() {
       }
     }
     bal += e.a;
-    if (bal < 0) warn = '有取出金额超过当时在账本金，请检查流水是否正确。';
+    /* 负余额警告只看日终余额：同一天「先取后转」的中间态不算数 */
+    const next = evs[idx + 1];
+    if ((!next || next.d.getTime() !== e.d.getTime()) && bal < 0) {
+      warn = '有取出金额超过当时在账本金，请检查流水是否正确。';
+    }
     if (e.a >= 0) { inSum += e.a; nIn++; } else { outSum += -e.a; nOut++; }
     prevIdx = e.i; prevD = e.d;
   });
 
   if (prevIdx >= 0 && endStr) {
     const end = D(endStr);
-    const n = Math.round((end - prevD) / 86400000);
+    const n = dayDiff(d2s(prevD), d2s(end));
     if (n < 0) warn = '结算日早于最后一笔流水日期，请检查日期。';
     if (n > 0 && bal > 0) {
       daysum += bal * n;
@@ -424,6 +428,8 @@ $('#basis').addEventListener('change', calc);
       applyParams();   /* 首次加载填充默认值（利率/基准/截止日=今天）；用户已手动改过的参数不覆盖 */
       renderRows(BASE.flows);
     }
+  } else if (!BASE) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#B91C1C;padding:20px">数据加载失败，请检查网络后刷新重试</td></tr>';
   }
 })();
 </script>

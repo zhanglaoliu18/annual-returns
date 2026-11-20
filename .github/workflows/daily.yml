@@ -3,7 +3,7 @@ name: daily-update-and-pages
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}   # 每日数据更新改由页面按钮手动触发（首页「更新今日收益」）
+  workflow_dispatch: {}   # 兜底：云函数 etf-report 直写失败时 dispatch 本工作流补数据
 
 permissions:
   contents: write   # daily_update.py 需要 commit+push
@@ -17,6 +17,9 @@ concurrency:
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -30,7 +33,11 @@ jobs:
 
   deploy-pages:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [update-data]
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:

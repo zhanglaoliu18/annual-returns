@@ -103,7 +103,7 @@ const allYears = (() => { const a = []; for (let y = 2022; y <= new Date().getUT
 async function loadData(base) {
   const since = base.daily_since || '2026';
   const fetchYears = allYears.filter(y => y >= since);
-  const yearDocs = await Promise.all(fetchYears.map(y => fetchJSON(`data/daily/${y}.json`)));
+  const yearDocs = await Promise.all(fetchYears.map(y => fetchJSON(`data/daily/${y}.json`, 2)));
   return { base, yearDocs, years: allYears };
 }
 
@@ -114,8 +114,8 @@ async function boot() {
 
   /* 用缓存里的 daily_since 猜年份范围，让年份 JSON 与 base/gfl 同时并行请求（原先串一级，开页多等一个往返） */
   const sinceGuess = (cached && cached.payload && cached.payload.base && cached.payload.base.daily_since) || '2026';
-  const yearsP = Promise.all(allYears.filter(y => y >= sinceGuess).map(y => fetchJSON(`data/daily/${y}.json`)));
-  const [base, gfl, yearDocs0] = await Promise.all([fetchJSON('data/costs/baseline.json'), fetchJSON('data/loan/gf_loan.json'), yearsP]);
+  const yearsP = Promise.all(allYears.filter(y => y >= sinceGuess).map(y => fetchJSON(`data/daily/${y}.json`, 2)));
+  const [base, gfl, yearDocs0] = await Promise.all([fetchJSON('data/costs/baseline.json', 2), fetchJSON('data/loan/gf_loan.json', 2), yearsP]);
   if (!base) { if (!cached) document.getElementById('app').innerHTML = '<div class="loading">数据加载失败，请检查网络后刷新</div>'; return; }
 
   /* daily_since 配置与缓存猜测不一致时（极少发生），回退到精确的串行加载 */
@@ -140,7 +140,10 @@ function cacheDiffers(a, b) { return JSON.stringify(a) !== JSON.stringify(b); }
 
 function main(base, yearDocs, years, gfl) {
   const thisYear = years[years.length - 1];
-  const cal = base.ths_2026_calibration;
+  /* 同花顺校准点按年映射：有校准的年份 = 校准基期 + 校准日之后的日盈亏；
+     无校准的自动年（如刚跨年）回落为全额日盈亏累加，不漏算、也不用等校准 */
+  const cals = base.ths_calibration
+    || (base.ths_2026_calibration ? { '2026': base.ths_2026_calibration } : {});
 
   /* 各年日盈亏汇总（同花顺校准日之前的日盈亏已含在校准基期内，不重复累加） */
   /* yearDocs 只含 daily_since 之后的年份，需按 fetchYears 对齐，不能按 years 下标取 */
@@ -150,12 +153,21 @@ function main(base, yearDocs, years, gfl) {
   years.forEach(y => {
     const doc = yearDocs[fetchYears.indexOf(y)];
     if (!doc) return;
-    const days = y === '2026' ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
+    const cal = cals[y];
+    const days = cal ? (doc.days || []).filter(x => x.date > cal.as_of) : (doc.days || []);
     pnlByYear[y] = days.reduce((s, x) => s + x.pnl, 0);
   });
 
   const ths = {...base.accounts.ths};
-  ths['2026'] = cal.base + (pnlByYear['2026'] || 0);
+  for (const y of years) {
+    if (cals[y]) ths[y] = cals[y].base + (pnlByYear[y] || 0);
+    else if (pnlByYear[y] != null) {
+      if (y === thisYear && !cals[y]) console.warn(`[calibration] ${y} 无同花顺校准点，该列按日盈亏全额累加`);
+      ths[y] = (ths[y] || 0) + pnlByYear[y];
+    }
+  }
+  const calShown = Object.values(cals).sort((a, b) => (a.as_of < b.as_of ? -1 : 1)).pop();
+  const missYears = fetchYears.filter((y, i) => !yearDocs[i]);
 
   const gross = {}, aliCol = base.accounts.alipay, cmbCol = base.accounts.cmb;
   /* 各账户余额按年取值，缺失年份（如跨年后的新年）按 0 计，避免 undefined 相加出 NaN */
@@ -233,7 +245,8 @@ function main(base, yearDocs, years, gfl) {
   const B_MAX = Math.max(...years.map(y => Math.max(gross[y], net[y])), 100000);
   const BW=980, BH=430, BL=66, BR=954, BASE=345.1, SCALE=311.1/(B_MAX*1.05);
   const by2 = v => BASE - v*SCALE, bh2 = v => Math.max(Math.abs(v)*SCALE, 1);
-  const centers = years.map((y,i) => 154.8 + i*177.6);
+  const centers = years.map((y,i) => BL + (i + 0.5) * (BR - BL) / years.length);
+  const grpW = Math.min(116, (BR - BL) / years.length * 0.65), barW = (grpW - 12) / 2;
   let bars = '';
   for (let v = 0; v <= B_MAX*1.05; v += 100000) {
     bars += `<line x1="${BL}" x2="${BR}" y1="${by2(v)}" y2="${by2(v)}" stroke="${v===0?'#111827':'#E6E8EC'}" stroke-width="${v===0?1.2:1}"/>`
@@ -242,9 +255,9 @@ function main(base, yearDocs, years, gfl) {
   years.forEach((y,i) => {
     const c = centers[i];
     const tip = `<b>${y} 年</b><br>毛收益 ${fmt(gross[y],0)} 元<br>净收益 ${signed(net[y],0)} 元<br>资金成本 ${fmt(gross[y]-net[y],0)} 元`;
-    for (const [kind, v, x, fill] of [['毛', gross[y], c-58, GRAY], ['净', net[y], c+6, up(net[y]) === GRAY ? '#111827' : up(net[y])]]) {
+    for (const [kind, v, x, fill] of [['毛', gross[y], c - grpW/2, GRAY], ['净', net[y], c + 6, up(net[y]) === GRAY ? '#111827' : up(net[y])]]) {
       const yy = v >= 0 ? by2(v) : BASE;
-      bars += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="52" height="${bh2(v).toFixed(1)}" rx="2" fill="${fill}" style="cursor:pointer" data-tip="${tip}"/>`;
+      bars += `<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh2(v).toFixed(1)}" rx="2" fill="${fill}" style="cursor:pointer" data-tip="${tip}"/>`;
     }
     bars += `<text x="${c.toFixed(1)}" y="404" fill="#6B7280" font-size="12.5" text-anchor="middle">${y}</text>`;
   });
@@ -258,7 +271,8 @@ function main(base, yearDocs, years, gfl) {
     </div>
     <div class="kpis">${kpis}</div>
 
-    <div class="card"><div class="ct"><h2>数据明细</h2><div class="d">单位：元 · 每日 ETF 盈亏自动累入同花顺（校准日 ${cal.as_of} 之后）</div></div>
+    <div class="card"><div class="ct"><h2>数据明细</h2><div class="d">单位：元 · 每日 ETF 盈亏自动累入同花顺（${calShown ? `校准日 ${calShown.as_of} 之后` : '按日盈亏全额累加'}）</div></div>
+      ${missYears.length ? `<div style="margin:6px 0 0;color:#B91C1C;font-size:12.5px">⚠️ ${missYears.join('、')} 年数据加载失败，该年账户与盈亏按 0 计；刷新即可恢复</div>` : ''}
       <div class="tscroll"><table>
         <thead><tr><th>年份</th><th>支付宝</th><th>招商银行</th><th>同花顺</th><th>毛收益</th><th>女友利息</th><th>融资利息</th><th>净收益</th></tr></thead>
         <tbody>${rows}${sumRow}</tbody>
@@ -273,19 +287,22 @@ function main(base, yearDocs, years, gfl) {
 
   /* 图表悬浮提示：鼠标移到数据点/柱子上显示明细 */
   const tipEl = document.getElementById('tip');
-  document.addEventListener('mousemove', e => {
-    const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
-    if (t) {
-      tipEl.innerHTML = t.dataset.tip;
-      tipEl.style.display = 'block';
-      const x = Math.min(e.clientX + 14, window.innerWidth - tipEl.offsetWidth - 8);
-      const y = Math.min(e.clientY + 14, window.innerHeight - tipEl.offsetHeight - 8);
-      tipEl.style.left = x + 'px';
-      tipEl.style.top = y + 'px';
-    } else {
-      tipEl.style.display = 'none';
-    }
-  });
+  if (!window.__tipBound) {                 // 缓存帧+数据帧各调一次 main，监听只注册一次
+    window.__tipBound = true;
+    document.addEventListener('mousemove', e => {
+      const t = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+      if (t) {
+        tipEl.innerHTML = t.dataset.tip;
+        tipEl.style.display = 'block';
+        const x = Math.min(e.clientX + 14, window.innerWidth - tipEl.offsetWidth - 8);
+        const y = Math.min(e.clientY + 14, window.innerHeight - tipEl.offsetHeight - 8);
+        tipEl.style.left = x + 'px';
+        tipEl.style.top = y + 'px';
+      } else {
+        tipEl.style.display = 'none';
+      }
+    });
+  }
 }
 </script>
 </body>
