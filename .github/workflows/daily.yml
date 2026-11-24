@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 10
     needs: [update-data]
     permissions:
+      actions: read    # deploy-pages 查询 artifact 元数据必须要有（缺了会报 Found 0 artifacts）
       pages: write
       id-token: write
     steps:
@@ -47,3 +48,19 @@ jobs:
         with:
           path: '.'
       - uses: actions/deploy-pages@v5
+
+  # 兜底：整条工作流失败时自动重新 dispatch 一次（只重试一次，防止无限循环）。
+  # 注意：不要用 rerun-failed-jobs——它会在同一 run 里再传一份同名 artifact，
+  # 导致 deploy-pages 报 "Multiple artifacts named github-pages"。
+  retry:
+    needs: [deploy-pages]
+    if: failure() && github.run_attempt < 2
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write   # 触发 workflow_dispatch
+    steps:
+      - name: 重新触发工作流（新 run，避免同名 artifact 冲突）
+        run: gh workflow run daily.yml --ref main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
