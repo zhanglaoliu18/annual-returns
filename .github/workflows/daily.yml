@@ -61,6 +61,6 @@ jobs:
       actions: write   # 触发 workflow_dispatch
     steps:
       - name: 重新触发工作流（新 run，避免同名 artifact 冲突）
-        run: gh workflow run daily.yml --ref main
+        run: gh workflow run daily.yml --ref main -R "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

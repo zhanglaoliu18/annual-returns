@@ -11,15 +11,16 @@ const parseD = s => new Date(String(s).slice(0, 10) + 'T00:00:00Z');
 const dayDiff = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000);
 const d2s = d => d.toISOString().slice(0, 10);
 
-/* 数据取数：源站优先（新鲜）、CDN 备用（国内可达）；tries 次 600ms 退避重试；
-   失败返回 null 不抛异常。
-   opts.cdnFirst: CDN 优先（近不变的文件如 shots.json 走 CDN 更稳）
+/* 数据取数：CDN 优先（jsDelivr 直读仓库 @main，云函数直写后 purge 即生效，
+   不依赖 Pages 部署——deploy-pages 曾连续失败导致源站数据停更）；源站备用；
+   tries 次 600ms 退避重试；失败返回 null 不抛异常。
+   opts.originFirst: true 时反过来源站优先（需要必然最新且未 purge 过的文件用）
    window.__noCache（调试开关）: 加时间戳参数并 reload，绕过一切缓存 */
 async function fetchJSON(url, tries = 0, opts = {}) {
   const nc = opts.noCache || window.__noCache;
   const sep = url.includes('?') ? '&' : '?';
   const b = nc ? sep + 't=' + Date.now() : '';
-  const order = opts.cdnFirst ? [CDN + url + b, url + b] : [url + b, CDN + url + b];
+  const order = opts.originFirst ? [url + b, CDN + url + b] : [CDN + url + b, url + b];
   for (const u of order) {
     try {
       const r = await fetch(u, {cache: nc ? 'reload' : 'no-cache'});

@@ -269,7 +269,7 @@ let FLOWS = [];       // 当前展示的流水（数据数组，计算用）
 let SHOTS = null;  // 原图字典，点击看大图时才加载
 /* 原图几乎不变，走 CDN 优先（common.js fetchJSON 的 cdnFirst 选项） */
 async function ensureShots() {
-  if (!SHOTS) { const d = await fetchJSON('data/loan/shots.json', 0, {cdnFirst: true}); SHOTS = d && d.shots ? d.shots : {}; }
+  if (!SHOTS) { const d = await fetchJSON('data/loan/shots.json'); SHOTS = d && d.shots ? d.shots : {}; }
   return SHOTS;
 }
 
