@@ -49,12 +49,14 @@ jobs:
           path: '.'
       - uses: actions/deploy-pages@v5
 
-  # 兜底：整条工作流失败时自动重新 dispatch 一次（只重试一次，防止无限循环）。
+  # 兜底：push 触发的 run 失败时，dispatch 一个新 run 重试一次（新 run 避免同名
+  # artifact 冲突）。只对 push 事件重试：dispatch 链上的 run 失败不再续派，
+  # 否则每次 dispatch 都是 attempt=1 的新 run，防死循环守卫永远不生效。
   # 注意：不要用 rerun-failed-jobs——它会在同一 run 里再传一份同名 artifact，
   # 导致 deploy-pages 报 "Multiple artifacts named github-pages"。
   retry:
     needs: [deploy-pages]
-    if: failure() && github.run_attempt < 2
+    if: failure() && github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
